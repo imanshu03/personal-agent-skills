@@ -16,6 +16,14 @@ Skills live under `skills/<skill-name>/` so the repository can grow as a library
 
 - `agent-handover`: Creates a durable handover package for moving an active coding task between Claude and Codex.
 
+Configure where a repository stores handover documents with:
+
+```bash
+python3 skills/agent-handover/scripts/setup_handover.py --dir .agent-handover
+```
+
+The directory is stored in `.agent-handover.json` at the repository root. If no preference is saved, agents should ask on first handover and default to `.agent-handover`.
+
 ## Install
 
 Install a skill from this repository with `npx skills add`:

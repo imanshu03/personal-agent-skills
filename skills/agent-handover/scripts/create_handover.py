@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import detect_invocation
+import handover_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,19 +44,22 @@ def table_rows(items: list[str], columns: int) -> str:
     return "\n".join(rows)
 
 
-def output_dir(repo: Path) -> Path:
-    handover_dir = repo / "docs" / "handover"
-    if handover_dir.exists():
-        return handover_dir
-    return repo / ".agent-handover"
+def receiving_prompt(handover: Path) -> str:
+    return (
+        "Continue the task from this handover file:\n\n"
+        f"{handover}\n\n"
+        "Start by reading the handover, checking the git state, and then proceed from the recommended next action. "
+        "Do not revert user changes. When you need clarification, prefer structured/generative question UI if your runtime supports it; "
+        "otherwise ask concise plain-text questions."
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create an agent handover markdown file.")
     parser.add_argument("--task", required=True, help="Short task title.")
-    parser.add_argument("--from-agent", choices=["auto", "codex", "claude"], default="auto")
-    parser.add_argument("--to-agent", choices=["auto", "codex", "claude"], default="auto")
-    parser.add_argument("--destination", choices=["auto", "app", "cli"], default="auto")
+    parser.add_argument("--worked-on-by", choices=["auto", "codex", "claude", "unknown"], default="auto")
+    parser.add_argument("--handover-dir", help="Directory path relative to the repository root.")
+    parser.add_argument("--save-handover-dir", action="store_true", help="Save --handover-dir as the repo preference.")
     parser.add_argument("--status", default="in progress")
     parser.add_argument("--user-goal", default="_Fill in the latest user goal._")
     parser.add_argument("--context-summary", default="_Fill in the conversation context the script cannot infer._")
@@ -70,22 +74,21 @@ def main() -> None:
     args = parser.parse_args()
 
     detected_agent, detection_reason = detect_invocation.detect_source_agent()
-    from_agent = detected_agent if args.from_agent == "auto" else args.from_agent
-    if args.from_agent != "auto":
-        detection_reason = f"explicit --from-agent {args.from_agent}; detection saw {detection_reason}"
-    to_agent = args.to_agent
-    if to_agent == "auto":
-        to_agent = detect_invocation.target_for(from_agent)
-    if not from_agent:
-        from_agent = "_unknown_"
-    if not to_agent:
-        raise SystemExit(
-            "Could not infer --to-agent. Pass --to-agent codex or --to-agent claude."
-        )
+    worked_on_by = detected_agent if args.worked_on_by == "auto" else args.worked_on_by
+    if args.worked_on_by != "auto":
+        detection_reason = f"explicit --worked-on-by {args.worked_on_by}; detection saw {detection_reason}"
+    if not worked_on_by:
+        worked_on_by = "unknown"
 
     cwd = Path(args.cwd).resolve()
     repo = git_root(cwd)
-    out = output_dir(repo)
+    if args.save_handover_dir and not args.handover_dir:
+        raise SystemExit("--save-handover-dir requires --handover-dir.")
+    if args.handover_dir and args.save_handover_dir:
+        config = handover_config.load_config(repo)
+        config["handoverDir"] = handover_config.normalize_handover_dir(args.handover_dir)
+        handover_config.save_config(repo, config)
+    out = handover_config.handover_dir(repo, args.handover_dir)
     out.mkdir(parents=True, exist_ok=True)
     out_path = out / f"{slugify(args.task)}.md"
 
@@ -99,10 +102,8 @@ def main() -> None:
 
     replacements = {
         "TASK_TITLE": args.task,
-        "FROM_AGENT": from_agent,
-        "TO_AGENT": to_agent,
+        "WORKED_ON_BY": worked_on_by,
         "SOURCE_DETECTION": detection_reason,
-        "DESTINATION": args.destination,
         "CREATED_AT": datetime.now(timezone.utc).isoformat(),
         "WORKSPACE": str(repo),
         "WORKTREE": str(repo),
@@ -132,14 +133,17 @@ def main() -> None:
         "REMAINING_RISK": "_Fill in._",
         "BLOCKERS": "- _Fill in, or write None._",
         "DO_NOT_LOSE": "- _Fill in subtle context._",
-        "HANDOVER_PATH": str(out_path),
     }
 
     content = TEMPLATE_PATH.read_text()
     for key, value in replacements.items():
         content = content.replace("{{" + key + "}}", value)
     out_path.write_text(content)
-    print(str(out_path))
+    print(f"Handover file: {out_path}")
+    print()
+    print("Prompt to paste into the other agent:")
+    print()
+    print(receiving_prompt(out_path))
 
 
 if __name__ == "__main__":

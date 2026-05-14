@@ -10,7 +10,6 @@ import subprocess
 
 
 AGENTS = {"codex", "claude"}
-OPPOSITE_AGENT = {"codex": "claude", "claude": "codex"}
 
 
 def _run(args: list[str]) -> str:
@@ -64,21 +63,14 @@ def detect_source_agent() -> tuple[str | None, str]:
     return None, "no Codex/Claude invocation signal detected"
 
 
-def target_for(source_agent: str | None) -> str | None:
-    if source_agent in OPPOSITE_AGENT:
-        return OPPOSITE_AGENT[source_agent]
-    return None
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Detect the invoking agent for handover routing.")
+    parser = argparse.ArgumentParser(description="Detect the agent that invoked the handover skill.")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON.")
     args = parser.parse_args()
 
     source_agent, reason = detect_source_agent()
     payload = {
-        "sourceAgent": source_agent,
-        "recommendedTargetAgent": target_for(source_agent),
+        "workedOnBy": source_agent,
         "reason": reason,
     }
     print(json.dumps(payload, indent=2 if args.pretty else None))
