@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Handover"
+  short_description: "Move task context between agents"
+  default_prompt: "Use $agent-handover to package this task and hand it to Claude or Codex."
