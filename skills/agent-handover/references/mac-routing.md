@@ -39,8 +39,9 @@ Detect terminals from common app names:
 2. If no preference exists, prefer CLI when the target CLI is installed.
 3. Use app only when explicitly requested, saved as a preference, or chosen by the user after seeing available surfaces.
 4. If both CLI and app are available and the user has not specified a surface, explain the tradeoff: CLI can receive the prompt directly; app routing only opens the app and requires pasting the prompt.
-5. If the app cannot receive context reliably, open the app and print the handover path plus prompt.
-6. If neither CLI nor app is available, create the handover file and report what is missing.
+5. If CLI routing is selected and no terminal preference exists, ask which detected terminal to use before launching when more than one terminal is available. Offer to save the answer for future handoffs.
+6. If the app cannot receive context reliably, open the app and print the handover path plus prompt.
+7. If neither CLI nor app is available, create the handover file and report what is missing.
 
 ## App Caveat
 

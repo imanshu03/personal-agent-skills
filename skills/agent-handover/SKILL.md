@@ -11,19 +11,21 @@ Use this skill to package the active task into a concise, durable handover file 
 
 ## Workflow
 
-1. Identify the source and target agents: `codex` or `claude`.
+1. Identify the source and target agents: `codex` or `claude`. Use `scripts/detect_invocation.py` to infer the source when the user did not specify it, and default the target to the opposite agent when detection is confident.
 2. Capture task context using `scripts/create_handover.py`.
 3. Add any conversation-only context the script cannot infer: user goal, latest instruction, decision reasons, brand/product details, blockers, and recommended next action.
 4. Detect available target surfaces with `scripts/detect_targets.py` when the user wants the receiving agent opened.
 5. If the user has not specified `cli` or `app` and both are available, tell them the available surfaces. Explain that CLI can receive the handover prompt directly, while app routing only opens the app and requires pasting the prompt.
-6. Route with `scripts/launch_agent.py` when a CLI/app target is available. If routing is uncertain, print the handover path and receiving-agent prompt instead of guessing.
-7. Tell the user where the handover was written and what route was used.
+6. Before launching a CLI handoff, check saved preferences. If no terminal preference exists and more than one terminal is detected, ask which terminal to use and offer to save it with `scripts/preferences.py`.
+7. Route with `scripts/launch_agent.py` when a CLI/app target is available. If routing is uncertain, print the handover path and receiving-agent prompt instead of guessing.
+8. Tell the user where the handover was written and what route was used.
 
 ## Capture Rules
 
 - Do not dump the full raw conversation. Summarize what the receiving agent needs to reconstruct state and continue safely.
 - Always include workspace, worktree, branch, base commit when known, current HEAD, git status, files touched, commands run, verification, blockers, and next action.
 - Include why decisions were made, not only what changed.
+- Preserve interaction preferences, including asking the receiving agent to use structured/generative question UI when its runtime supports it.
 - Include unrelated dirty files as "do not touch" when visible.
 - Respect repo-specific handover conventions. In this repo, write to `docs/handover/<slug>.md` when available; otherwise use `.agent-handover/<slug>.md`.
 - If a matching task context exists, mention it in the handover and update its execution log only when the current agent actually completed that work.
@@ -38,6 +40,7 @@ For macOS routing, read `references/mac-routing.md`.
 - `cli`: launch the target CLI in the preferred terminal when detected.
 - `app`: open the target app only when detected. For Codex, use `Codex.app`; do not route Codex handoffs through `ChatGPT.app`.
 - App routing cannot inject the handover automatically unless the app exposes a supported route. Print the exact prompt the user should paste into the receiving app.
+- First-run CLI routing should ask for the user's terminal when multiple terminals are detected. Do not silently choose a terminal unless the user asked for automatic routing or only one terminal is available.
 - If no reliable route exists, create the handover file and provide the exact prompt to paste into the receiving agent.
 
 Store preferences in `~/Library/Application Support/agent-handover/preferences.json`. Use `scripts/preferences.py` to read or write them.
@@ -47,8 +50,10 @@ Store preferences in `~/Library/Application Support/agent-handover/preferences.j
 Create a handover:
 
 ```bash
-python3 skills/agent-handover/scripts/create_handover.py --to-agent claude --task "Short task title"
+python3 skills/agent-handover/scripts/create_handover.py --task "Short task title"
 ```
+
+Pass `--from-agent` or `--to-agent` when the detected source or inferred target is wrong.
 
 Detect local targets:
 
@@ -56,10 +61,16 @@ Detect local targets:
 python3 skills/agent-handover/scripts/detect_targets.py
 ```
 
+Detect the invoking agent:
+
+```bash
+python3 skills/agent-handover/scripts/detect_invocation.py --pretty
+```
+
 Launch a receiving CLI:
 
 ```bash
-python3 skills/agent-handover/scripts/launch_agent.py --to-agent claude --handover docs/handover/my-task.md --surface cli
+python3 skills/agent-handover/scripts/launch_agent.py --handover docs/handover/my-task.md --surface cli
 ```
 
 Open a receiving app:

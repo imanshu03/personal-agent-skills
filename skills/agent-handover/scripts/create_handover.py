@@ -9,6 +9,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+import detect_invocation
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = ROOT / "assets" / "handover.template.md"
@@ -51,8 +53,8 @@ def output_dir(repo: Path) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create an agent handover markdown file.")
     parser.add_argument("--task", required=True, help="Short task title.")
-    parser.add_argument("--from-agent", choices=["codex", "claude"], default="codex")
-    parser.add_argument("--to-agent", choices=["codex", "claude"], required=True)
+    parser.add_argument("--from-agent", choices=["auto", "codex", "claude"], default="auto")
+    parser.add_argument("--to-agent", choices=["auto", "codex", "claude"], default="auto")
     parser.add_argument("--destination", choices=["auto", "app", "cli"], default="auto")
     parser.add_argument("--status", default="in progress")
     parser.add_argument("--user-goal", default="_Fill in the latest user goal._")
@@ -66,6 +68,20 @@ def main() -> None:
     parser.add_argument("--base-commit", default="")
     parser.add_argument("--cwd", default=".", help="Workspace directory.")
     args = parser.parse_args()
+
+    detected_agent, detection_reason = detect_invocation.detect_source_agent()
+    from_agent = detected_agent if args.from_agent == "auto" else args.from_agent
+    if args.from_agent != "auto":
+        detection_reason = f"explicit --from-agent {args.from_agent}; detection saw {detection_reason}"
+    to_agent = args.to_agent
+    if to_agent == "auto":
+        to_agent = detect_invocation.target_for(from_agent)
+    if not from_agent:
+        from_agent = "_unknown_"
+    if not to_agent:
+        raise SystemExit(
+            "Could not infer --to-agent. Pass --to-agent codex or --to-agent claude."
+        )
 
     cwd = Path(args.cwd).resolve()
     repo = git_root(cwd)
@@ -83,8 +99,9 @@ def main() -> None:
 
     replacements = {
         "TASK_TITLE": args.task,
-        "FROM_AGENT": args.from_agent,
-        "TO_AGENT": args.to_agent,
+        "FROM_AGENT": from_agent,
+        "TO_AGENT": to_agent,
+        "SOURCE_DETECTION": detection_reason,
         "DESTINATION": args.destination,
         "CREATED_AT": datetime.now(timezone.utc).isoformat(),
         "WORKSPACE": str(repo),

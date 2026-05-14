@@ -5,6 +5,7 @@
 - From agent: {{FROM_AGENT}}
 - To agent: {{TO_AGENT}}
 - Requested destination: {{DESTINATION}}
+- Source detection: {{SOURCE_DETECTION}}
 - Created at: {{CREATED_AT}}
 - Workspace: `{{WORKSPACE}}`
 - Worktree: `{{WORKTREE}}`
@@ -88,6 +89,10 @@
 
 {{DO_NOT_LOSE}}
 
+## Interaction Preference
+
+When clarification is needed, use the receiving surface's structured or generative question UI if it is available. For example, Codex app may expose structured choice prompts in planning contexts. If the runtime does not provide such UI, ask concise plain-text questions instead.
+
 ## Suggested Prompt For Receiving Agent
 
 ```text
@@ -95,5 +100,5 @@ Continue the task from this handover file:
 
 {{HANDOVER_PATH}}
 
-Start by reading the handover, checking the git state, and then proceed from the recommended next action. Do not revert user changes.
+Start by reading the handover, checking the git state, and then proceed from the recommended next action. Do not revert user changes. When you need clarification, prefer structured/generative question UI if your runtime supports it; otherwise ask concise plain-text questions.
 ```
