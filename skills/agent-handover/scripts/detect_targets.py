@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP_BUNDLE_IDS = {
     "claude": ["com.anthropic.claude"],
-    "codex": ["com.openai.chatgpt", "com.openai.codex"],
+    "codex": ["com.openai.codex"],
 }
 
 TERMINALS = ["Terminal", "iTerm", "iTerm2", "Ghostty", "WezTerm", "Warp", "Alacritty", "kitty"]
@@ -43,7 +43,13 @@ def find_apps(bundle_ids: list[str], names: list[str]) -> list[str]:
             if candidate.exists():
                 paths.append(str(candidate))
 
-    return sorted(set(paths))
+    seen = set()
+    ordered_paths = []
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            ordered_paths.append(path)
+    return ordered_paths
 
 
 def detect() -> dict:
@@ -55,7 +61,7 @@ def detect() -> dict:
             },
             "codex": {
                 "cli": shutil.which("codex"),
-                "apps": find_apps(APP_BUNDLE_IDS["codex"], ["Codex", "ChatGPT"]),
+                "apps": find_apps(APP_BUNDLE_IDS["codex"], ["Codex"]),
             },
         },
         "terminals": {name: find_apps([], [name]) for name in TERMINALS},

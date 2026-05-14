@@ -13,6 +13,12 @@ import detect_targets
 import preferences
 
 
+APP_NAMES = {
+    "claude": "Claude.app",
+    "codex": "Codex.app",
+}
+
+
 def run(args: list[str]) -> int:
     return subprocess.call(args)
 
@@ -59,6 +65,14 @@ def terminal_is_available(targets: dict, terminal: str) -> bool:
     return bool(targets.get("terminals", {}).get(terminal))
 
 
+def choose_app(agent: str, apps: list[str]) -> str | None:
+    preferred_name = APP_NAMES[agent]
+    for app in apps:
+        if Path(app).name == preferred_name:
+            return app
+    return apps[0] if apps else None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Launch a target agent for a handover.")
     parser.add_argument("--to-agent", choices=["claude", "codex"], required=True)
@@ -91,9 +105,12 @@ def main() -> None:
         raise SystemExit(code)
 
     apps = agent_info.get("apps", [])
-    if surface == "app" and apps:
-        code = run(["open", "-a", apps[0]])
-        print(f"Opened {apps[0]}. Paste the receiving prompt from {handover}.")
+    app = choose_app(args.to_agent, apps)
+    if surface == "app" and app:
+        code = run(["open", app])
+        print(f"Opened {app}. App routing cannot inject the handover automatically.")
+        print("Paste this prompt into the receiving agent:")
+        print(command_for(args.to_agent, handover))
         raise SystemExit(code)
 
     print(f"No reliable {surface} route found. Handover file: {handover}")

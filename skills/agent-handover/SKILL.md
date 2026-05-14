@@ -7,7 +7,7 @@ description: Create a durable handover package that transfers the current coding
 
 ## Overview
 
-Use this skill to package the active task into a concise, durable handover file and optionally open the receiving agent on macOS. Prefer reliable CLI handoff; use app handoff only when a supported app route exists.
+Use this skill to package the active task into a concise, durable handover file and optionally open the receiving agent on macOS. Prefer reliable CLI handoff; offer app handoff when the user explicitly asks for an app or wants to choose a surface.
 
 ## Workflow
 
@@ -15,8 +15,9 @@ Use this skill to package the active task into a concise, durable handover file 
 2. Capture task context using `scripts/create_handover.py`.
 3. Add any conversation-only context the script cannot infer: user goal, latest instruction, decision reasons, brand/product details, blockers, and recommended next action.
 4. Detect available target surfaces with `scripts/detect_targets.py` when the user wants the receiving agent opened.
-5. Route with `scripts/launch_agent.py` when a CLI/app target is available. If routing is uncertain, print the handover path and receiving-agent prompt instead of guessing.
-6. Tell the user where the handover was written and what route was used.
+5. If the user has not specified `cli` or `app` and both are available, tell them the available surfaces. Explain that CLI can receive the handover prompt directly, while app routing only opens the app and requires pasting the prompt.
+6. Route with `scripts/launch_agent.py` when a CLI/app target is available. If routing is uncertain, print the handover path and receiving-agent prompt instead of guessing.
+7. Tell the user where the handover was written and what route was used.
 
 ## Capture Rules
 
@@ -35,7 +36,8 @@ For macOS routing, read `references/mac-routing.md`.
 
 - `auto`: use saved preference first; otherwise prefer CLI because it can receive a file path/prompt reliably.
 - `cli`: launch the target CLI in the preferred terminal when detected.
-- `app`: open the app only when detected. Do not claim full context injection unless the app exposes a supported route.
+- `app`: open the target app only when detected. For Codex, use `Codex.app`; do not route Codex handoffs through `ChatGPT.app`.
+- App routing cannot inject the handover automatically unless the app exposes a supported route. Print the exact prompt the user should paste into the receiving app.
 - If no reliable route exists, create the handover file and provide the exact prompt to paste into the receiving agent.
 
 Store preferences in `~/Library/Application Support/agent-handover/preferences.json`. Use `scripts/preferences.py` to read or write them.
@@ -58,6 +60,12 @@ Launch a receiving CLI:
 
 ```bash
 python3 skills/agent-handover/scripts/launch_agent.py --to-agent claude --handover docs/handover/my-task.md --surface cli
+```
+
+Open a receiving app:
+
+```bash
+python3 skills/agent-handover/scripts/launch_agent.py --to-agent codex --handover docs/handover/my-task.md --surface app
 ```
 
 Show or save preferences:
