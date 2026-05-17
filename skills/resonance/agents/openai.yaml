@@ -1,4 +1,4 @@
 interface:
   display_name: "Resonance"
-  short_description: "Launch Warp-based Claude executors"
-  default_prompt: "Use $resonance to plan this change, open a feature Warp window, and dispatch Claude Code Executor tabs for each reviewed phase and task."
+  short_description: "Launch Codex-terminal Claude executors"
+  default_prompt: "Use $resonance to plan this change and dispatch Claude Code Executor sessions in the Codex app terminal for each reviewed phase and task."

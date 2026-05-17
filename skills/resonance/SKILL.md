@@ -1,18 +1,18 @@
 ---
 name: resonance
-description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator and must create or dispatch Claude Code CLI Executor sessions in Warp or another terminal. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance orchestrator, /resonance executor, requests to implement with resonance, and requests to launch Warp-based Claude Code Executor sessions for a resonance task.
+description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator and dispatches Claude Code CLI Executor sessions in the Codex Mac app terminal. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance orchestrator, /resonance executor, requests to implement with resonance, and requests to launch Codex-terminal Claude Code Executor sessions for a resonance task.
 ---
 
 # Resonance
 
-Use resonance to coordinate a large change through durable markdown artifacts, terminal-launched Claude Code Executor sessions, and strict Orchestrator review gates.
+Use resonance to coordinate a large change through durable markdown artifacts, Codex app terminal-launched Claude Code Executor sessions, and strict Orchestrator review gates.
 
 Personal runtime mapping:
 
 - Treat Codex as the Orchestrator.
 - Treat Claude Code CLI as the Executor.
-- Treat Warp as the terminal runtime.
-- Have the Orchestrator open one feature-level Warp window when possible, record its handle, and dispatch each phase review or task execution as its own Claude Code CLI session in a dedicated Warp tab for that feature.
+- Treat the Codex Mac app terminal as the terminal runtime.
+- Have the Orchestrator dispatch each phase review or task execution as its own visible Claude Code CLI session in the Codex app terminal, record the returned terminal session handle when available, and monitor the session alongside the durable markdown channel.
 
 ## Core Rule
 
@@ -64,12 +64,12 @@ python /path/to/resonance/scripts/init_work_package.py \
 2. Write the draft design direction into `<work-folder>/brainstorm/context.md`.
 3. Record the draft and review loop in `<work-folder>/brainstorm/discussion.md`.
 4. Create a Codex phase monitor automation for the absolute brainstorm `discussion.md` path when automation tools are available.
-5. Dispatch a Claude Code CLI Executor phase review in a terminal/Warp session with `/resonance executor <uuid> brainstorm`.
+5. Dispatch a Claude Code CLI Executor phase review in a Codex app terminal session with `/resonance executor <uuid> brainstorm`.
 6. Let the Codex automation and Executor monitor exchange async turns through `discussion.md` until both agents mark `Alignment: aligned`.
 7. Ask the user to approve the aligned brainstorm context before planning.
 8. Use Superpowers writing-plans when available to create `<work-folder>/plan/context.md`.
 9. Create a Codex phase monitor automation for the absolute plan `discussion.md` path when automation tools are available.
-10. Dispatch a Claude Code CLI Executor plan review in a terminal/Warp session with `/resonance executor <uuid> plan`.
+10. Dispatch a Claude Code CLI Executor plan review in a Codex app terminal session with `/resonance executor <uuid> plan`.
 11. Let the Codex automation and Executor monitor exchange async turns through `discussion.md` until both agents mark `Alignment: aligned`.
 12. Ask the user to approve the aligned plan context before implementation.
 13. Create one `task-N/` folder per approved task, each with `context.md` and `execution.md`.
@@ -122,14 +122,14 @@ Executor duties:
 
 Do not create separate monitor markdown files. The monitor's durable coordination surface is the phase `discussion.md` or task `execution.md`.
 
-Use `<work-folder>/warp/monitors/` only for fallback shell monitor artifacts when Claude Code `Monitor` is unavailable:
+Use `<work-folder>/terminal/monitors/` only for fallback shell monitor artifacts when Claude Code `Monitor` is unavailable:
 
 ```text
 fallback-monitor-<phase-or-task>.sh
 fallback-monitor-<phase-or-task>.log
 ```
 
-The monitor contract is required for real resonance runs. Skip it only for an explicitly local dry run, unavailable automation tools, unavailable Claude Code `Monitor` support, or a user-approved headless smoke test; record the skip or fallback reason in `<work-folder>/warp/window.md`.
+The monitor contract is required for real resonance runs. Skip it only for an explicitly local dry run, unavailable automation tools, unavailable Claude Code `Monitor` support, or a user-approved headless smoke test; record the skip or fallback reason in `<work-folder>/terminal/sessions.md`.
 
 ## Review Rules
 
@@ -172,49 +172,32 @@ Plan work as a dependency graph, not only as a numbered list.
 - Never dispatch two tasks with overlapping files, directories, generated artifacts, lockfiles, migration history, or shared package boundaries.
 - Summarize dependency outputs in dependent task contexts instead of asking Executors to read earlier execution logs.
 
-## Warp Dispatch
+## Codex App Terminal Dispatch
 
-Use Warp's URI scheme or launch configurations. Do not paste commands into Warp with UI keystrokes unless the user explicitly approves that local fallback.
+Use the Codex Mac app terminal as the terminal runtime. Start visible Claude Code CLI Executor sessions from Codex app terminal sessions; do not use external terminal windows, tabs, or launch configurations for normal resonance runs.
 
-Public Warp URI commands:
+Session protocol:
 
-```bash
-open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"
-open "warp://action/new_tab?path=<absolute-repo-or-worktree-path>"
-open "warp://launch/<launch-configuration-name-or-path>"
-```
+1. Create `<work-folder>/terminal/sessions.md` before the brainstorm Executor review.
+2. Start one Codex app terminal session per phase review or task execution.
+3. Record the returned terminal session handle when available, the repo/worktree path, the phase or task, the command shape, and the status source in `sessions.md`.
+4. Use Codex app terminal output for live observation, but treat `discussion.md` and `execution.md` as the durable coordination records.
+5. When a Claude Code `Monitor` wakes and more Executor work is required, resume the same terminal session if available; otherwise start a visible continuation session and record it.
 
-Feature-window protocol:
+Every dispatch command must:
 
-1. Open one Warp window for the feature before the brainstorm Executor review.
-2. Try to capture a local feature window handle if the machine exposes one.
-3. Record the handle and dispatch templates in `<work-folder>/warp/window.md`.
-4. Open each phase/task in a separate tab in that feature window.
-5. If no window handle can be captured or focused, record `Window handle: unavailable` and use Warp launch configurations as the fallback.
+1. Set the working directory to the repo root or assigned worktree.
+2. Set the terminal title to `resonance:<short-uuid>:<phase-or-task>` when the terminal honors OSC title escapes.
+3. Start a visible Claude Code CLI session with the matching `/resonance executor ...` prompt.
+4. Pass the prompt directly to `claude "<query>"`.
+5. Allow the Claude Code `Monitor` tool for async phase/task handoffs.
+6. Avoid persistent prompt files. If a transient runner script or headless log is needed, keep it under `<work-folder>/terminal/`, delete it on exit, and record it in `sessions.md`.
 
-Window handle capture is environment-specific. On macOS, this may require Accessibility permission:
+Do not create `.done` sentinel files for visible Codex app terminal sessions. The terminal session is user-visible, and `discussion.md` or `execution.md` is the durable status record.
 
-```bash
-feature_window_id="$(
-  osascript -e 'tell application "System Events" to tell process "Warp" to get id of front window' 2>/dev/null || true
-)"
-```
+Use `claude "<query>"` as the default Codex app terminal invocation so the user can watch the Executor session. Use `claude -p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
 
-Do not assume Warp accepts `window_id` in URI parameters unless the local Warp command template explicitly supports it. Warp's public URI scheme supports new windows, new tabs, and launch configurations; deterministic same-window targeting requires a verified local focus/window command.
-
-Every dispatch must create a runner script or launch configuration that:
-
-1. Sets the working directory to the repo root or assigned worktree.
-2. Renames the tab with `resonance:<short-uuid>:<phase-or-task>`.
-3. Starts a visible Claude Code CLI session with the matching `/resonance executor ...` prompt.
-4. Passes the prompt directly to `claude "<query>"`.
-5. Allows the Claude Code `Monitor` tool for async phase/task handoffs.
-
-Do not create `.done` sentinel files for visible Warp sessions. The Warp tab is the user-visible session, and `discussion.md` or `execution.md` is the durable status record.
-
-Use `claude "<query>"` as the default Warp invocation so the user can watch the Executor session. Use `claude -p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
-
-Runner script shape:
+Codex app terminal command shape:
 
 ```bash
 #!/usr/bin/env bash
@@ -222,14 +205,19 @@ set -euo pipefail
 
 cd "<absolute-repo-or-worktree-path>"
 printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
-mkdir -p "<work-folder>/warp"
+mkdir -p "<work-folder>/terminal"
 
-query="$(cat <<'EOF'
+# Use `IFS= read -r -d '' … <<'EOF'` instead of `$(cat <<'EOF' … EOF)`.
+# macOS ships bash 3.2, which has a parser bug where literal apostrophes
+# inside a quoted heredoc nested in $(...) abort the script with
+# "unexpected EOF while looking for matching `''". `read -d ''` avoids the
+# wrapper. The trailing `|| true` is needed because `read -d ''` exits 1
+# at real EOF and we run under `set -euo pipefail`.
+IFS= read -r -d '' query <<'EOF' || true
 /resonance executor <uuid> <phase-or-task>
 
 <phase-or-task prompt with absolute context paths>
 EOF
-)"
 
 claude \
   --permission-mode acceptEdits \
@@ -238,40 +226,64 @@ claude \
   "$query"
 ```
 
-If a headless run is explicitly needed, reuse the same `query` value with:
+Do not regress this to `query="$(cat <<'EOF' … EOF)"`. Any prompt body containing an apostrophe (e.g. `Claude Code's Monitor tool`) will fail under macOS's default bash 3.2.
+
+If the app terminal launch path needs a runner script instead of an inline shell command, make the runner transient and self-deleting:
 
 ```bash
-mkdir -p "<work-folder>/warp/logs"
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Self-delete the runner on exit. The script holds the Executor prompt
+# and absolute paths; we do not want it lingering in the user's repo
+# working tree or getting committed by accident. The durable record is
+# `discussion.md` / `execution.md` / `terminal/sessions.md`, not this file.
+trap 'rm -f -- "<absolute-runner-script-path>"' EXIT
+
+cd "<absolute-repo-or-worktree-path>"
+printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
+mkdir -p "<work-folder>/terminal"
+
+# Same heredoc rules as the visible command above.
+IFS= read -r -d '' query <<'EOF' || true
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute context paths>
+EOF
+
+claude \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash,Monitor \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$query"
+```
+
+If a headless run is explicitly needed, reuse the same `query` shape with a transient log:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Self-delete the runner AND the tee'd log on exit. The log captures the
+# full Executor prompt and session output; treat it as transient and do
+# not leave it on disk.
+trap 'rm -f -- "<absolute-runner-script-path>" "<absolute-log-path>"' EXIT
+
+cd "<absolute-repo-or-worktree-path>"
+mkdir -p "<work-folder>/terminal/logs"
+
+IFS= read -r -d '' query <<'EOF' || true
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute context paths>
+EOF
 
 claude -p \
   --permission-mode acceptEdits \
   --allowedTools Read,Edit,Bash,Monitor \
   --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
-  "$query" 2>&1 | tee "<work-folder>/warp/logs/<phase-or-task>.log"
+  "$query" 2>&1 | tee "<absolute-log-path>"
 ```
-
-Launch configuration shape:
-
-```text
----
-name: resonance-<short-uuid>-<phase-or-task>
-windows:
-  - tabs:
-      - title: resonance:<short-uuid>:<phase-or-task>
-        layout:
-          cwd: <absolute-repo-or-worktree-path>
-          commands:
-            - exec: bash <absolute-runner-script-path>
-        color: blue
-```
-
-Place launch configs in `$HOME/.warp/launch_configurations/`, then launch with:
-
-```bash
-open "warp://launch/resonance-<short-uuid>-<phase-or-task>.yaml"
-```
-
-For same-window dispatch, first focus the recorded feature window using the local verified command if one exists, then launch the new tab/config. If focus fails, continue with the launch configuration fallback and record the fallback in `<work-folder>/warp/window.md`.
 
 ## Reference
 

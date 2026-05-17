@@ -7,7 +7,7 @@ Use this reference for exact artifact shapes, status values, and coordination pr
 - Storage model
 - UUID lookup
 - Core artifacts
-- Warp dispatch contract
+- Codex app terminal dispatch contract
 - Async monitor contract
 - Phase alignment
 - Task status state machine
@@ -71,81 +71,66 @@ Create these durable markdown files before implementation starts:
 - `<work-folder>/plan/discussion.md`: mutable plan review log.
 - `<work-folder>/task-N/context.md`: stable task-level instructions and review checklist.
 - `<work-folder>/task-N/execution.md`: live task coordination, status, completion notes, review rounds.
-- `<work-folder>/warp/window.md`: feature-level Warp dispatch record, including window handle when available, fallback behavior, runner scripts, launch configs, and visible session status.
-- `<work-folder>/warp/run-<phase-or-task>-executor.sh`: optional runner script for one Claude Code Executor session.
-- `<work-folder>/warp/monitors/fallback-monitor-<phase-or-task>.sh`: optional fallback only when the Claude Code `Monitor` tool is unavailable, disabled, or not allowed.
-- `<work-folder>/warp/monitors/fallback-monitor-<phase-or-task>.log`: fallback monitor output when a fallback script is required.
-- `<work-folder>/warp/logs/<phase-or-task>.log`: optional captured Executor output for explicit headless runs.
+- `<work-folder>/terminal/sessions.md`: Codex app terminal dispatch record, including session handles when available, fallback behavior, runner scripts, and visible session status.
+- `<work-folder>/terminal/run-<phase-or-task>-executor.sh`: optional transient runner script for one Claude Code Executor session. The runner self-deletes on exit; treat it as ephemeral and do not commit it.
+- `<work-folder>/terminal/monitors/fallback-monitor-<phase-or-task>.sh`: optional fallback only when the Claude Code `Monitor` tool is unavailable, disabled, or not allowed.
+- `<work-folder>/terminal/monitors/fallback-monitor-<phase-or-task>.log`: fallback monitor output when a fallback script is required.
+- `<work-folder>/terminal/logs/<phase-or-task>.log`: transient captured Executor output for explicit headless runs. Self-deletes on exit alongside the runner; tail it live during the run, do not commit it.
 
 Do not create monitor-specific markdown artifacts. `discussion.md` and `execution.md` are the durable async transcript and state files for both Codex automation and Claude Code `Monitor`.
-Do not create `.done` sentinel files for visible Warp sessions. The Warp tab is the user-visible session, and `discussion.md` or `execution.md` is the durable status record.
+Do not create `.done` sentinel files for visible Codex app terminal sessions. The terminal session is user-visible, and `discussion.md` or `execution.md` is the durable status record.
 
-## Warp Dispatch Contract
+## Codex App Terminal Dispatch Contract
 
-Use Warp as the terminal runtime by opening one feature-level Warp window and then launching one Claude Code Executor tab per phase or task.
+Use the Codex Mac app terminal as the terminal runtime. Start one visible Claude Code Executor session per phase or task in the Codex app terminal, and record the app terminal session handle when one is available. Do not use external terminal windows, tabs, or launch configurations for normal resonance runs.
 
-### Public Warp Commands
+### Session Record
 
-Warp's public URI scheme supports these commands:
-
-```bash
-open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"
-open "warp://action/new_tab?path=<absolute-repo-or-worktree-path>"
-open "warp://launch/<launch-configuration-name-or-path>"
-```
-
-Warp launch configuration files live in `$HOME/.warp/launch_configurations/` on macOS. A launch configuration can set tab title, working directory, and startup commands.
-
-### Feature Window Record
-
-Before dispatching the brainstorm review, create `<work-folder>/warp/window.md`:
+Before dispatching the brainstorm review, create `<work-folder>/terminal/sessions.md`:
 
 ```markdown
-# Warp Window
+# Codex App Terminal Sessions
 
 **Date:** YYYY-MM-DD
 **UUID:** <uuid>
-**Feature window title:** resonance:<short-uuid>
+**Runtime:** Codex Mac app terminal
+**Feature title:** resonance:<short-uuid>
 **Repo/worktree:** <absolute-repo-or-worktree-path>
-**Open window command:** `open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"`
-**Window handle:** <captured-id | unavailable>
-**Handle source:** <command or reason unavailable>
-**New tab command template:** <command or unavailable>
-**Launch config folder:** `$HOME/.warp/launch_configurations`
+**Dispatch command template:** `claude "<query>"`
+**Session handle source:** <Codex app terminal session id | unavailable reason>
+**Fallback runner folder:** `<work-folder>/terminal`
 
 ## Dispatches
 
-- brainstorm: <runner path>, <launch config>, <visible tab/session>, <status source>
+- brainstorm: session=<session-id | unavailable>, cwd=<repo-or-worktree>, command=<summary>, status source=<discussion.md>
 ```
 
-Try to capture the feature window handle only if the local machine exposes one. On macOS, this may require Accessibility permission:
+If the Codex app returns a terminal session id or PTY handle, record it. If no handle is exposed, write `Session handle: unavailable` and rely on the durable markdown channel plus visible terminal output.
+
+### Per-Session Command
+
+For every phase review and task execution, launch a visible Codex app terminal session running `claude "<query>"` without `-p` so the user can watch the Claude Code session. Pass the query directly; do not write a separate prompt file. Use `-p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
+
+Run this command shape directly in the Codex app terminal:
 
 ```bash
-feature_window_id="$(
-  osascript -e 'tell application "System Events" to tell process "Warp" to get id of front window' 2>/dev/null || true
-)"
-```
-
-If the command returns an empty value or an error, write `Window handle: unavailable` and continue with launch configurations. Do not invent or assume a `window_id` URI parameter; use it only when the local Warp command template explicitly supports it.
-
-### Per-Session Runner
-
-For every phase review and task execution, create a runner script under `<work-folder>/warp/`. Default to `claude "<query>"` without `-p` so the user can watch the Claude Code session in Warp. Pass the query directly; do not write a separate prompt file. Use `-p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
-
-```bash
-#!/usr/bin/env bash
 set -euo pipefail
 
 cd "<absolute-repo-or-worktree-path>"
 printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
-mkdir -p "<work-folder>/warp"
+mkdir -p "<work-folder>/terminal"
 
-query="$(cat <<'EOF'
+# Use `IFS= read -r -d '' ... <<'EOF'`, not `$(cat <<'EOF' ... EOF)`.
+# macOS bash 3.2 has a parser bug where literal apostrophes inside a
+# quoted heredoc nested in $(...) abort the script with "unexpected EOF
+# while looking for matching `''". `read -d ''` reads until NUL (never
+# present in the heredoc), so it always exits 1 at real EOF; the
+# trailing `|| true` keeps `set -euo pipefail` from killing the script.
+IFS= read -r -d '' query <<'EOF' || true
 /resonance executor <uuid> <phase-or-task>
 
 <phase-or-task prompt with absolute paths>
 EOF
-)"
 
 claude \
   --permission-mode acceptEdits \
@@ -154,44 +139,70 @@ claude \
   "$query"
 ```
 
+Do not regress this template to `query="$(cat <<'EOF' ... EOF)"` - any prompt body containing an apostrophe (e.g. `Claude Code's Monitor tool`) will fail under macOS's default bash 3.2.
+
 Use `--allowedTools Read,Write,Edit,Bash,Monitor` for task execution when the task context permits file creation. Keep phase reviews read/edit-only for discussion files, plus `Monitor` for async handoffs.
 
-For explicit headless runs, reuse the same `query` value and capture output:
+If the app terminal launch path needs a runner script instead of an inline command, keep the runner under `<work-folder>/terminal/` and treat it as transient. It contains the literal Executor prompt and absolute paths, so the script must self-delete on exit and must never be committed. The durable record is `discussion.md` / `execution.md` / `terminal/sessions.md`.
 
 ```bash
-mkdir -p "<work-folder>/warp/logs"
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Self-delete this runner on exit so the prompt and absolute paths do
+# not linger in the user's repo or get committed. bash holds the script
+# inode open until the process exits; the EXIT trap runs after `claude`
+# returns (clean exit, non-zero exit, Ctrl-C, or `set -e` abort).
+# The Orchestrator substitutes the literal absolute path here; do not
+# use `$0`, which becomes relative when a user invokes the script as
+# `bash run-task-N-executor.sh` from inside `terminal/`.
+trap 'rm -f -- "<absolute-runner-script-path>"' EXIT
+
+cd "<absolute-repo-or-worktree-path>"
+printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
+mkdir -p "<work-folder>/terminal"
+
+# Same heredoc rules as the visible command above.
+IFS= read -r -d '' query <<'EOF' || true
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute paths>
+EOF
+
+claude \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash,Monitor \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$query"
+```
+
+For explicit headless runs, build a complete runner that captures `tee` output to a transient log and deletes both the runner and the log on exit:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Self-delete the runner AND the tee'd log on exit. The log captures
+# the full Executor prompt and session output; tail it live during the
+# run, but do not leave it on disk.
+trap 'rm -f -- "<absolute-runner-script-path>" "<absolute-log-path>"' EXIT
+
+cd "<absolute-repo-or-worktree-path>"
+mkdir -p "<work-folder>/terminal/logs"
+
+# Same heredoc rules as the visible runner above.
+IFS= read -r -d '' query <<'EOF' || true
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute paths>
+EOF
 
 claude -p \
   --permission-mode acceptEdits \
   --allowedTools Read,Edit,Bash,Monitor \
   --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
-  "$query" 2>&1 | tee "<work-folder>/warp/logs/<phase-or-task>.log"
+  "$query" 2>&1 | tee "<absolute-log-path>"
 ```
-
-### Launch Configuration
-
-Create one launch configuration per session:
-
-```yaml
----
-name: resonance-<short-uuid>-<phase-or-task>
-windows:
-  - tabs:
-      - title: resonance:<short-uuid>:<phase-or-task>
-        layout:
-          cwd: <absolute-repo-or-worktree-path>
-          commands:
-            - exec: bash <absolute-runner-script-path>
-        color: blue
-```
-
-Launch it with:
-
-```bash
-open "warp://launch/resonance-<short-uuid>-<phase-or-task>.yaml"
-```
-
-If a verified local focus command exists for the captured feature window handle, focus that feature window before launching the next tab/config. If not, launch the config anyway and record the fallback in `<work-folder>/warp/window.md`.
 
 ## Async Monitor Contract
 
@@ -216,10 +227,10 @@ Use this loop for brainstorm and plan:
 1. Orchestrator writes or updates `<phase>/context.md`.
 2. Orchestrator appends `### Orchestrator draft - round N` to `<phase>/discussion.md`.
 3. Orchestrator creates a Codex phase monitor automation for the absolute `discussion.md` path.
-4. Orchestrator dispatches a visible Warp tab running `claude "<query>"` with `/resonance executor <uuid> <phase>`.
+4. Orchestrator dispatches a visible Codex app terminal session running `claude "<query>"` with `/resonance executor <uuid> <phase>`.
 5. Executor appends `### Executor review - round N` and starts a Claude Code `Monitor` for the same `discussion.md` file.
 6. The Codex automation notices the pending Executor review, updates `<phase>/context.md` if needed, and appends `### Orchestrator response - round N`.
-7. The Executor monitor notices the new Orchestrator response. If alignment is still pending, it resumes the same Claude Code session or launches a visible continuation in the feature Warp window to append the next Executor review.
+7. The Executor monitor notices the new Orchestrator response. If alignment is still pending, it resumes the same Claude Code session or launches a visible Codex app terminal continuation to append the next Executor review.
 8. Both monitors stop when the phase status is `user-approved` or `user-decision-needed`.
 
 The Codex phase automation must no-op if no new `### Executor review - round N` is waiting. The Executor phase monitor must no-op if it has already handled the latest `### Orchestrator response - round N`.
@@ -230,11 +241,11 @@ Use this loop for every task:
 
 1. Orchestrator creates `task-N/context.md` and `task-N/execution.md`.
 2. Before dispatch, Orchestrator creates a Codex task monitor automation for the absolute `task-N/execution.md` path.
-3. Orchestrator dispatches a visible Warp tab running `claude "<query>"` with `/resonance executor <uuid> task-N`.
+3. Orchestrator dispatches a visible Codex app terminal session running `claude "<query>"` with `/resonance executor <uuid> task-N`.
 4. Executor implements only that task, records completion notes, and sets `Status: awaiting-orchestrator-review`.
 5. Executor starts a Claude Code `Monitor` for the same `execution.md` file.
 6. The Codex automation notices `Status: awaiting-orchestrator-review`, reviews the task, appends `### Orchestrator review - round N`, and sets `Status: approved`, `Status: changes-requested`, or `Status: user-decision-needed`.
-7. The Executor monitor notices the Orchestrator review. If status is `changes-requested`, it resumes the same Claude Code session or launches a visible continuation in the feature Warp window to fix only the findings for that task.
+7. The Executor monitor notices the Orchestrator review. If status is `changes-requested`, it resumes the same Claude Code session or launches a visible Codex app terminal continuation to fix only the findings for that task.
 8. Both monitors stop when the task status is `approved` or `user-decision-needed`.
 
 The Codex task automation must no-op unless the current task status is `awaiting-orchestrator-review`. The Executor task monitor must no-op if it has already handled the latest `### Orchestrator review - round N` or terminal status.
@@ -252,7 +263,7 @@ Use Claude Code's `Monitor` tool by default. Ask Claude Code to watch the absolu
 
 Do not create `monitor-*.md` files. When the monitor wakes, the Executor contributes directly to the watched `discussion.md` or `execution.md` file. That file is the record.
 
-Fallback shell scripts are allowed only when Claude Code `Monitor` is unavailable, disabled, or not allowed. If fallback is required, create `fallback-monitor-<phase-or-task>.sh` and `fallback-monitor-<phase-or-task>.log`, and record the fallback reason in `<work-folder>/warp/window.md`. Do not make fallback scripts the default path.
+Fallback shell scripts are allowed only when Claude Code `Monitor` is unavailable, disabled, or not allowed. If fallback is required, create `fallback-monitor-<phase-or-task>.sh` and `fallback-monitor-<phase-or-task>.log`, and record the fallback reason in `<work-folder>/terminal/sessions.md`. Do not make fallback scripts the default path.
 
 ### Codex Automation Prompts
 
@@ -634,7 +645,7 @@ Executor monitor behavior:
 
 1. For phases, start Claude Code `Monitor` on `discussion.md` after appending `### Executor review - round N`.
 2. For tasks, start Claude Code `Monitor` on `execution.md` after setting `Status: awaiting-orchestrator-review`.
-3. Resume the same Claude Code session, or launch a visible continuation in the feature Warp window, only when a new Orchestrator response or review requires more Executor work.
+3. Resume the same Claude Code session, or launch a visible Codex app terminal continuation, only when a new Orchestrator response or review requires more Executor work.
 4. Do nothing if the latest Orchestrator marker was already handled.
 5. Stop the `Monitor` when the phase is `user-approved`, the task is `approved`, or the item is `user-decision-needed`.
 6. Use a fallback shell monitor only when the `Monitor` tool is unavailable, disabled, or not allowed; record the fallback reason.
@@ -653,7 +664,7 @@ Context:
 Discussion:
 <work-folder>/<phase>/discussion.md
 
-Review the phase context for missing context, unstated assumptions, bias, contradictions, feasibility risks, and unclear acceptance criteria. Append Executor review - round N to discussion.md. If the phase is acceptable, write Alignment: aligned. If changes are needed, write clear findings and leave Alignment: pending. Do not edit product code. Start Claude Code's Monitor tool for the absolute discussion.md path so this same session wakes only on a new Orchestrator response or terminal status, then resumes this Executor flow if another review is needed. Do not create a separate monitor markdown file; discussion.md is the record. Use fallback-monitor-<phase>.sh only if Monitor is unavailable, disabled, or not allowed, and record the reason in <work-folder>/warp/window.md. Keep the monitor running until the phase is user-approved or user-decision-needed, then stop it. If there have been more than six review/response turns without alignment, mark Status: user-decision-needed and ask the Orchestrator to escalate to the user.
+Review the phase context for missing context, unstated assumptions, bias, contradictions, feasibility risks, and unclear acceptance criteria. Append Executor review - round N to discussion.md. If the phase is acceptable, write Alignment: aligned. If changes are needed, write clear findings and leave Alignment: pending. Do not edit product code. Start Claude Code's Monitor tool for the absolute discussion.md path so this same session wakes only on a new Orchestrator response or terminal status, then resumes this Executor flow if another review is needed. Do not create a separate monitor markdown file; discussion.md is the record. Use fallback-monitor-<phase>.sh only if Monitor is unavailable, disabled, or not allowed, and record the reason in <work-folder>/terminal/sessions.md. Keep the monitor running until the phase is user-approved or user-decision-needed, then stop it. If there have been more than six review/response turns without alignment, mark Status: user-decision-needed and ask the Orchestrator to escalate to the user.
 ```
 
 ## Executor Task Prompt
@@ -670,7 +681,7 @@ Task context:
 Task execution:
 <work-folder>/task-N/execution.md
 
-If a task was not assigned explicitly, locate <work-folder> by UUID and claim the first ready task whose dependencies are approved and whose write locks do not conflict with an in-progress task. Implement only that task in this Executor session. Follow the task context exactly. Do not implement future tasks. Do not read sibling task folders unless the claimed task's context.md explicitly names them as dependencies. Record this session and workspace/worktree in execution.md, then set Status to in-progress. When complete, update execution.md with summary, files touched, commands run, deviations, and open questions. Set Status to awaiting-orchestrator-review. Start Claude Code's Monitor tool for the absolute execution.md path so this same session wakes only on a new Orchestrator review or terminal status. If Status is changes-requested, resume this Executor flow and fix only the Orchestrator findings for this task. Do not create a separate monitor markdown file; execution.md is the record. Use fallback-monitor-task-N.sh only if Monitor is unavailable, disabled, or not allowed, and record the reason in <work-folder>/warp/window.md. Keep the monitor running until the task is approved or user-decision-needed, then stop it.
+If a task was not assigned explicitly, locate <work-folder> by UUID and claim the first ready task whose dependencies are approved and whose write locks do not conflict with an in-progress task. Implement only that task in this Executor session. Follow the task context exactly. Do not implement future tasks. Do not read sibling task folders unless the claimed task's context.md explicitly names them as dependencies. Record this session and workspace/worktree in execution.md, then set Status to in-progress. When complete, update execution.md with summary, files touched, commands run, deviations, and open questions. Set Status to awaiting-orchestrator-review. Start Claude Code's Monitor tool for the absolute execution.md path so this same session wakes only on a new Orchestrator review or terminal status. If Status is changes-requested, resume this Executor flow and fix only the Orchestrator findings for this task. Do not create a separate monitor markdown file; execution.md is the record. Use fallback-monitor-task-N.sh only if Monitor is unavailable, disabled, or not allowed, and record the reason in <work-folder>/terminal/sessions.md. Keep the monitor running until the task is approved or user-decision-needed, then stop it.
 ```
 
 ## Orchestrator Review Prompt
@@ -701,7 +712,7 @@ Plan:
 Task folders:
 <work-folder>/task-*/
 
-Read the plan, each task context.md, each task execution.md, and <work-folder>/warp/window.md. Mark blocked tasks as not-started only when their dependencies are approved. Select ready tasks whose write locks do not overlap. For each selected task, create a Codex task monitor automation for the absolute task execution.md path at a 4-minute interval before launch. Create a per-task runner script and Warp launch configuration under <work-folder>/warp/. The runner prompt must allow the Claude Code Monitor tool and require the Executor to start Monitor for task-N after it sets Status: awaiting-orchestrator-review. The Executor must write all responses to execution.md, not a separate monitor markdown file. If a feature Warp window handle and verified focus command are available, focus that feature window first; otherwise record the fallback in window.md. Launch the task in its own Warp tab/config, rename it to resonance:<short-uuid>:task-N, and run Claude Code CLI with /resonance executor <uuid> task-N. Do not dispatch tasks with overlapping write locks in the same wave. Summarize dispatched tasks, skipped tasks, and why each skipped task was not ready.
+Read the plan, each task context.md, each task execution.md, and <work-folder>/terminal/sessions.md. Mark blocked tasks as not-started only when their dependencies are approved. Select ready tasks whose write locks do not overlap. For each selected task, create a Codex task monitor automation for the absolute task execution.md path at a 4-minute interval before launch. Dispatch one visible Codex app terminal session per selected task, using a transient runner under <work-folder>/terminal/ only when the terminal launch path cannot pass the prompt inline. The prompt must allow the Claude Code Monitor tool and require the Executor to start Monitor for task-N after it sets Status: awaiting-orchestrator-review. The Executor must write all responses to execution.md, not a separate monitor markdown file. Record each terminal session handle, continuation, runner fallback, and status source in sessions.md. Rename the terminal session to resonance:<short-uuid>:task-N when the terminal honors OSC title escapes, and run Claude Code CLI with /resonance executor <uuid> task-N. Do not dispatch tasks with overlapping write locks in the same wave. Summarize dispatched tasks, skipped tasks, and why each skipped task was not ready.
 ```
 
 ## Endgame
