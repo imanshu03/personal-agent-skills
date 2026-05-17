@@ -5,6 +5,7 @@ This repository contains personal agent skills. Treat it as a skill library: roo
 ## Repository Layout
 
 - `skills/agent-handover/SKILL.md`: Skill definition and workflow for transferring task context between agents.
+- `skills/resonance/SKILL.md`: Skill definition and workflow for review-gated two-agent coordination (Codex Orchestrator + Claude Code CLI Executor) on large changes. Supporting files live in `skills/resonance/{agents,references,scripts}/`.
 - `README.md`: Human-facing overview of the repository.
 - `AGENTS.md`: Canonical instructions for coding agents working in this repository.
 - `CLAUDE.md`: Pointer to this file for Claude compatibility.

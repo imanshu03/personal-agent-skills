@@ -8,6 +8,11 @@ A small collection of local agent skills for Codex, Claude, and adjacent coding-
 skills/
   agent-handover/
     SKILL.md
+  resonance/
+    SKILL.md
+    agents/
+    references/
+    scripts/
 ```
 
 Skills live under `skills/<skill-name>/` so the repository can grow as a library while each skill stays self-contained. A root-level `SKILL.md` would make sense for a repository that contains exactly one skill; this repo keeps the root available for shared docs, tooling, tests, and future packaging.
@@ -15,6 +20,7 @@ Skills live under `skills/<skill-name>/` so the repository can grow as a library
 ## Current Skills
 
 - `agent-handover`: Creates a durable handover package for moving an active coding task between Claude and Codex.
+- `resonance`: Coordinates large changes through a review-gated two-agent workflow where Codex acts as Orchestrator and Claude Code CLI acts as Executor, with strict brainstorm, plan, execution, review, and final-verification gates.
 
 Configure where a repository stores handover documents with:
 
@@ -23,6 +29,17 @@ python3 skills/agent-handover/scripts/setup_handover.py --dir .agent-handover
 ```
 
 The directory is stored in `.agent-handover.json` at the repository root. If no preference is saved, agents should ask on first handover and default to `.agent-handover`.
+
+Scaffold a new resonance work package with:
+
+```bash
+python3 skills/resonance/scripts/init_work_package.py \
+  --base-folder .resonance \
+  --change-name "Short change name" \
+  --user-request "Original user request"
+```
+
+Resonance stores coordination files under a base folder (default `.resonance` or `docs/resonance`) chosen on first use.
 
 ## Install
 
