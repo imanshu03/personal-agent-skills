@@ -1,11 +1,13 @@
 # Agent Instructions
 
-This repository contains personal agent skills. Treat it as a skill library: root-level files are shared project documentation, and individual skills live under `skills/<skill-name>/`.
+This repository contains personal agent skills and plugins. Treat it as a small agent-extension library: root-level files are shared project documentation, individual skills live under `skills/<skill-name>/`, and plugin packages live under `plugins/<plugin-name>/`.
 
 ## Repository Layout
 
 - `skills/agent-handover/SKILL.md`: Skill definition and workflow for transferring task context between agents.
-- `skills/resonance/SKILL.md`: Skill definition and workflow for review-gated two-agent coordination (Codex Orchestrator + Claude Code CLI Executor) on large changes. Supporting files live in `skills/resonance/{agents,references,scripts}/`.
+- `plugins/resonance/`: Claude Code and Codex plugin for review-gated two-agent coordination where the invoking agent/session chooses the Orchestrator or Executor role, including `/resonance:orchestrator` and `/resonance:executor` command files.
+- `.claude-plugin/marketplace.json`: Claude Code marketplace entry for repo-local plugins.
+- `.agents/plugins/marketplace.json`: Codex marketplace entry for repo-local plugins.
 - `README.md`: Human-facing overview of the repository.
 - `AGENTS.md`: Canonical instructions for coding agents working in this repository.
 - `CLAUDE.md`: Pointer to this file for Claude compatibility.
@@ -13,12 +15,14 @@ This repository contains personal agent skills. Treat it as a skill library: roo
 ## Editing Guidelines
 
 - Keep each skill self-contained under `skills/<skill-name>/`.
+- Keep plugin wrappers under `plugins/<plugin-name>/`, and keep command files under `plugins/<plugin-name>/commands/`.
+- Keep plugin-specific references, scripts, agents, and assets inside that plugin package.
 - Prefer adding skill-local materials beside the skill:
   - `skills/<skill-name>/scripts/`
   - `skills/<skill-name>/references/`
   - `skills/<skill-name>/assets/`
 - Do not move a skill to the repository root unless the repository is intentionally being converted into a single-skill package.
-- Update `README.md` when adding, renaming, or removing skills, including the install command when the skill name changes.
+- Update `README.md` when adding, renaming, or removing skills or plugins, including install instructions when names change.
 - Keep instructions concise and specific to this repository.
 
 ## Install Convention

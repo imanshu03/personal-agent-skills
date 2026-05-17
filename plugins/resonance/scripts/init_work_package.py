@@ -61,7 +61,7 @@ Updated at: {now}
 ## Executor
 
 Session: unregistered
-Monitor: unregistered
+Watch: unregistered
 Workspace/worktree: unset
 
 ## Event Log
@@ -75,7 +75,7 @@ def brainstorm_context(change: str, request: str, today: str, work_uuid: str, ba
 
 **Date:** {today}
 **UUID:** {work_uuid}
-**Skill:** resonance
+**Plugin:** resonance
 **Invocation namespace:** resonance
 **Role model:** Orchestrator/Executor
 **Base folder:** {base}
@@ -165,7 +165,7 @@ def plan_context(change: str, today: str, work_uuid: str, base: str, work: str, 
 
 **Date:** {today}
 **UUID:** {work_uuid}
-**Skill:** resonance
+**Plugin:** resonance
 **Invocation namespace:** resonance
 **Role model:** Orchestrator/Executor
 **Base folder:** {base}

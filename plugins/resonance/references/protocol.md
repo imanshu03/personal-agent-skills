@@ -1,6 +1,6 @@
 # Resonance Protocol Reference
 
-Use this reference for exact artifact shapes, status values, and coordination prompts. Keep `SKILL.md` as the operational overview; load this file when creating or reviewing resonance artifacts.
+Use this reference for exact artifact shapes, status values, and coordination prompts. Keep `workflow.md` as the operational overview; load this file when creating or reviewing resonance artifacts.
 
 ## Table Of Contents
 
@@ -73,9 +73,10 @@ Create these durable markdown files before implementation starts:
 - `<work-folder>/plan/discussion.md`: mutable plan review log.
 - `<work-folder>/task-N/context.md`: stable task-level instructions and review checklist.
 - `<work-folder>/task-N/execution.md`: live task coordination, status, completion notes, review rounds.
-- `<work-folder>/terminal/run-executor.sh`: optional transient runner script for one long-lived Claude Code Executor session. The runner self-deletes on exit; treat it as ephemeral and do not commit it.
-- `<work-folder>/terminal/monitors/fallback-monitor-control.sh`: optional fallback only when the Claude Code `Monitor` tool is unavailable, disabled, or not allowed.
-- `<work-folder>/terminal/monitors/fallback-monitor-control.log`: fallback monitor output when a fallback script is required.
+- `<work-folder>/terminal/run-executor.sh`: optional transient runner script for one long-lived Executor session. The runner self-deletes on exit; treat it as ephemeral and do not commit it.
+- `plugins/resonance/scripts/fallback_monitor_control.sh`: plugin-owned fallback watcher script. Agents must run this script instead of creating an ad hoc shell monitor.
+- `<work-folder>/terminal/monitors/fallback-monitor-control.log`: fallback watcher output when the plugin-owned fallback script is required.
+- `<work-folder>/terminal/monitors/fallback-monitor-control.pid`: optional pid file written by the plugin-owned fallback script.
 - `<work-folder>/terminal/logs/executor.log`: transient captured Executor output for explicit headless runs. Self-deletes on exit alongside the runner; tail it live during the run, do not commit it.
 
 Do not create monitor-specific markdown artifacts. `control.md` is the durable async baton file; `discussion.md` and `execution.md` are the durable content records.
@@ -86,12 +87,12 @@ Do not create `.done` sentinel files for Executor sessions. `control.md`, `discu
 The Orchestrator does not spawn phase or task Executor sessions by default. After creating the work folder and `control.md`, the Orchestrator must show the user this command before substantive feature work:
 
 ```text
-Run this in Claude Code CLI:
+Run this in the agent/session that will act as Executor:
 
 /resonance:executor <uuid>
 ```
 
-The user starts one long-lived Claude Code CLI Executor session. That Executor locates the work folder by UUID, registers itself in `control.md`, sets `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, starts a global Claude Code `Monitor` on the absolute `control.md` path, and waits for `Owner: executor`.
+The user starts one long-lived Executor session in whichever supported agent should perform the Executor role. That Executor locates the work folder by UUID, registers itself in `control.md`, sets `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, starts the current agent's native monitor/watch on the absolute `control.md` path when available, and waits for `Owner: executor`.
 
 ### Control Record
 
@@ -119,7 +120,7 @@ Updated at: YYYY-MM-DDTHH:MM:SSZ
 ## Executor
 
 Session: unregistered
-Monitor: unregistered
+Watch: unregistered
 Workspace/worktree: unset
 
 ## Event Log
@@ -131,7 +132,7 @@ Allowed `Owner:` values: `orchestrator`, `executor`, `user`, `none`.
 Allowed `Status:` values: `bootstrapping`, `executor-start-needed`, `orchestrator-working`, `awaiting-executor`, `executor-working`, `awaiting-orchestrator`, `awaiting-user`, `complete`, `user-decision-needed`.
 Allowed `Next action:` values include `start-executor`, `executor-ready`, `review-brainstorm`, `review-plan`, `execute-task`, `fix-task`, `review-task`, `approve-phase`, `final-verify`, `none`.
 
-For explicit headless runs, build a complete runner that captures `tee` output to a transient log and deletes both the runner and the log on exit:
+For explicit Claude Code headless runs, build a complete runner that captures `tee` output to a transient log and deletes both the runner and the log on exit. For other agents, adapt the runner to that agent's CLI while preserving the `/resonance:executor <uuid>` query and transient logging rules:
 
 ```bash
 #!/usr/bin/env bash
@@ -159,9 +160,9 @@ claude -p \
 
 ## Control Baton Monitor Contract
 
-Every resonance phase or task is assigned through `<work-folder>/control.md`, so Codex and Claude Code coordinate through durable markdown instead of terminal scrollback. For Claude Code CLI v2.1.98 or later, use the built-in `Monitor` tool for Executor-side monitoring of `control.md`. The `Monitor` tool writes and runs its own background watch script and feeds output lines back into the same Claude Code session, so resonance should not create hand-written shell monitor scripts for normal runs.
+Every resonance phase or task is assigned through `<work-folder>/control.md`, so the Orchestrator and Executor coordinate through durable markdown instead of terminal scrollback. Use each role session's native monitor, automation, reminder, or follow-up mechanism for `control.md` when available. Examples include Claude Code's built-in `Monitor` tool and Codex app automations. Resonance should not create hand-written shell monitor scripts for normal runs when a native monitor is available.
 
-`Monitor` must be present in `--allowedTools`. It follows the same permission rules as `Bash`; if it is unavailable, disabled by environment settings, or not allowed in the session, record the reason and use the fallback monitor path below.
+If using Claude Code `Monitor`, it must be present in `--allowedTools` and follows the same permission rules as `Bash`. If the current agent has no native monitor, the native monitor is disabled by environment settings, or it is not allowed in the session, record the reason and use the fallback monitor path below.
 
 There is one baton channel:
 
@@ -169,8 +170,15 @@ There is one baton channel:
 
 There are two monitor roles:
 
-- The Orchestrator creates one Codex automation after bootstrap. It watches the absolute `control.md` path and acts only when the baton says `Owner: orchestrator` and `Status: awaiting-orchestrator`.
-- The Executor sets `Next action: executor-ready` after registering itself, then starts one Claude Code `Monitor`. It watches the same `control.md` path and acts only when the baton says `Owner: executor` and `Status: awaiting-executor`.
+- The Orchestrator creates one native monitor/automation after bootstrap when available. It watches the absolute `control.md` path and acts only when the baton says `Owner: orchestrator` and `Status: awaiting-orchestrator`.
+- The Executor sets `Next action: executor-ready` after registering itself, then starts one native monitor/watch when available. It watches the same `control.md` path and acts only when the baton says `Owner: executor` and `Status: awaiting-executor`.
+
+Agent-specific monitor mapping:
+
+- If the role session is Codex, use Codex app automations for the `control.md` watcher.
+- If the role session is Claude Code, use Claude Code's `Monitor` tool for the `control.md` watcher.
+- If the role session is another supported agent, use that agent's native automation, monitor, reminder, or follow-up mechanism.
+- Use the plugin-owned fallback shell monitor only when the current role session has no usable native watch mechanism; record the fallback reason in `control.md`.
 
 ### Phase Monitor Loop
 
@@ -181,11 +189,11 @@ Use this loop for brainstorm and plan:
 3. Orchestrator updates `control.md`: `Owner: executor`, `Status: awaiting-executor`, `Phase: <phase>`, `Target: <phase>/discussion.md`, `Next action: review-<phase>`.
 4. Executor monitor notices the baton, reads `<phase>/context.md` and `<phase>/discussion.md`, and appends `### Executor review - round N` to the discussion.
 5. Executor updates `control.md`: `Owner: orchestrator`, `Status: awaiting-orchestrator`, `Phase: <phase>`, `Target: <phase>/discussion.md`, `Next action: review-<phase>-response`.
-6. Codex automation notices the baton, reads the phase context and discussion, updates `<phase>/context.md` if needed, and appends `### Orchestrator response - round N`.
+6. The Orchestrator monitor/automation notices the baton, reads the phase context and discussion, updates `<phase>/context.md` if needed, and appends `### Orchestrator response - round N`.
 7. If alignment is pending, Orchestrator hands the baton back to Executor through `control.md`. If aligned, Orchestrator sets `Owner: user`, `Status: awaiting-user`, and asks the user to approve the phase.
 8. Both monitors keep watching `control.md` until the run is complete or `user-decision-needed`.
 
-The Codex automation must no-op unless `control.md` assigns ownership to the Orchestrator. The Executor monitor must no-op unless `control.md` assigns ownership to the Executor.
+The Orchestrator monitor/automation must no-op unless `control.md` assigns ownership to the Orchestrator. The Executor monitor must no-op unless `control.md` assigns ownership to the Executor.
 
 ### Task Monitor Loop
 
@@ -195,14 +203,14 @@ Use this loop for every task:
 2. Orchestrator updates `control.md`: `Owner: executor`, `Status: awaiting-executor`, `Phase: task-N`, `Target: task-N/execution.md`, `Next action: execute-task`.
 3. Executor monitor notices the baton, implements only that task, records completion notes in `task-N/execution.md`, and sets the task status to `awaiting-orchestrator-review`.
 4. Executor updates `control.md`: `Owner: orchestrator`, `Status: awaiting-orchestrator`, `Phase: task-N`, `Target: task-N/execution.md`, `Next action: review-task`.
-5. Codex automation notices the baton, reviews the task, appends `### Orchestrator review - round N`, and sets task `Status:` to `approved`, `changes-requested`, or `user-decision-needed`.
+5. The Orchestrator monitor/automation notices the baton, reviews the task, appends `### Orchestrator review - round N`, and sets task `Status:` to `approved`, `changes-requested`, or `user-decision-needed`.
 6. If changes are requested, Orchestrator hands the baton back through `control.md` with `Next action: fix-task`; otherwise it assigns the next ready task or moves toward final verification.
 
-The Codex automation must no-op unless `control.md` assigns ownership to the Orchestrator. The Executor monitor must no-op unless `control.md` assigns ownership to the Executor.
+The Orchestrator monitor/automation must no-op unless `control.md` assigns ownership to the Orchestrator. The Executor monitor must no-op unless `control.md` assigns ownership to the Executor.
 
 ### Executor Monitor Setup
 
-Use Claude Code's `Monitor` tool by default. Ask Claude Code to watch the absolute `control.md` path and emit a wake-up only when the baton assigns work to the Executor:
+Use the current Executor agent's native monitor/watch by default. Ask it to watch the absolute `control.md` path and emit a wake-up only when the baton assigns work to the Executor:
 
 - Target: `<work-folder>/control.md`
 - Wake-up: `Owner: executor` with `Status: awaiting-executor`
@@ -210,11 +218,37 @@ Use Claude Code's `Monitor` tool by default. Ask Claude Code to watch the absolu
 
 Do not create `monitor-*.md` files. When the monitor wakes, the Executor reads `Target:` from `control.md` and contributes directly to that target `discussion.md` or `execution.md` file. `control.md` is only the baton.
 
-Fallback shell scripts are allowed only when Claude Code `Monitor` is unavailable, disabled, or not allowed. If fallback is required, create `fallback-monitor-control.sh` and `fallback-monitor-control.log`, and record the fallback reason in `<work-folder>/control.md`. Do not make fallback scripts the default path.
+Fallback shell monitoring is allowed only when the current agent's native monitor/watch is unavailable, disabled, or not allowed. If fallback is required, run the plugin-owned `scripts/fallback_monitor_control.sh`; do not create a custom monitor script. Write its log and optional pid file under `<work-folder>/terminal/monitors/`, and record the fallback reason in `<work-folder>/control.md`. Do not make fallback shell monitoring the default path.
 
-### Codex Automation Prompts
+Example fallback invocation for an Executor watcher:
 
-Use absolute paths in Codex automations.
+```bash
+nohup bash /path/to/plugins/resonance/scripts/fallback_monitor_control.sh \
+  --control "<absolute-work-folder>/control.md" \
+  --owner executor \
+  --status awaiting-executor \
+  --interval 5 \
+  --log "<absolute-work-folder>/terminal/monitors/fallback-monitor-control.log" \
+  --pid-file "<absolute-work-folder>/terminal/monitors/fallback-monitor-control.pid" \
+  >/dev/null 2>&1 &
+```
+
+Example fallback invocation for an Orchestrator watcher:
+
+```bash
+nohup bash /path/to/plugins/resonance/scripts/fallback_monitor_control.sh \
+  --control "<absolute-work-folder>/control.md" \
+  --owner orchestrator \
+  --status awaiting-orchestrator \
+  --interval 5 \
+  --log "<absolute-work-folder>/terminal/monitors/fallback-monitor-control.log" \
+  --pid-file "<absolute-work-folder>/terminal/monitors/fallback-monitor-control.pid" \
+  >/dev/null 2>&1 &
+```
+
+### Orchestrator Automation Prompts
+
+Use absolute paths in Orchestrator-side monitors, automations, reminders, or follow-ups.
 
 Global control automation prompt:
 
@@ -226,16 +260,18 @@ Watch <work-folder>/control.md for Owner: orchestrator and Status: awaiting-orch
 
 Brainstorm and plan phases use the same loop:
 
+When creating the brainstorm context or plan context, use Superpowers if it is available in the current Orchestrator agent: use the Superpowers brainstorming command/workflow for brainstorm and the Superpowers writing-plans command/workflow for planning. If Superpowers is not available, use the current agent's best available brainstorming/planning command, skill, plugin, or a structured manual pass.
+
 1. Orchestrator writes or updates phase `context.md`.
 2. Orchestrator appends `### Orchestrator draft - round N` to `discussion.md`.
 3. Orchestrator updates `control.md` to hand the baton to the Executor for the phase review.
 4. Executor reviews the phase context and appends `### Executor review - round N` to `discussion.md`.
 5. Executor updates `control.md` to return the baton to the Orchestrator.
-6. Codex automation responds in `### Orchestrator response - round N`.
+6. The Orchestrator monitor/automation responds in `### Orchestrator response - round N`.
 7. Orchestrator updates `control.md` again if another Executor review round is needed.
 8. Repeat until both agents write `Alignment: aligned`.
 9. Ask the user to approve the aligned phase context.
-10. Keep the global monitors alive for the next phase unless the run is complete or `user-decision-needed`.
+10. Keep the global watchers alive for the next phase unless the run is complete or `user-decision-needed`.
 
 After more than six review/response turns without alignment, stop and ask the user to decide.
 
@@ -297,7 +333,7 @@ Updated at: YYYY-MM-DDTHH:MM:SSZ
 ## Executor
 
 Session: unregistered
-Monitor: unregistered
+Watch: unregistered
 Workspace/worktree: unset
 
 ## Event Log
@@ -312,7 +348,7 @@ Workspace/worktree: unset
 
 **Date:** YYYY-MM-DD
 **UUID:** <uuid>
-**Skill:** resonance
+**Plugin:** resonance
 **Invocation namespace:** resonance
 **Role model:** Orchestrator/Executor
 **Base folder:** <base-folder>
@@ -399,7 +435,7 @@ Workspace/worktree: unset
 
 **Date:** YYYY-MM-DD
 **UUID:** <uuid>
-**Skill:** resonance
+**Plugin:** resonance
 **Invocation namespace:** resonance
 **Role model:** Orchestrator/Executor
 **Base folder:** <base-folder>
@@ -589,7 +625,7 @@ Status: blocked
 
 ## Automation Behavior
 
-Create one Codex monitor automation for `<work-folder>/control.md` after bootstrap when automation tools are available. Use an absolute file path. The Executor creates one matching Claude Code `Monitor` on the same `control.md` file after it registers itself.
+Create one role-appropriate watcher for `<work-folder>/control.md` after bootstrap when the current agent supports it. Use an absolute file path. If the role session is Codex, use a Codex automation. If the role session is Claude Code, use Claude Code `Monitor`. The Executor creates its own role-appropriate watcher on the same `control.md` file after it registers itself.
 
 Recommended intervals:
 
@@ -614,13 +650,13 @@ Executor monitor behavior:
 
 1. Register the Executor session in `control.md`.
 2. Set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`.
-3. Start Claude Code `Monitor` on the absolute `control.md` path.
+3. Start the role-appropriate watcher on the absolute `control.md` path: Codex automation when running in Codex, Claude Code `Monitor` when running in Claude Code, or the current agent's equivalent.
 4. Wake only when `Owner: executor` and `Status: awaiting-executor`.
 5. Use `Phase:`, `Target:`, and `Next action:` to choose the minimum context files.
 6. Write detailed output to the target discussion or execution file.
 7. Return the baton by updating `control.md` to `Owner: orchestrator` and `Status: awaiting-orchestrator`.
-8. Stop the `Monitor` when `Status: complete` or `Status: user-decision-needed`.
-9. Use a fallback shell monitor only when the `Monitor` tool is unavailable, disabled, or not allowed; record the fallback reason.
+8. Stop the watcher when `Status: complete` or `Status: user-decision-needed`.
+9. Use the plugin-owned fallback shell monitor only when the current role session has no usable native watcher; record the fallback reason.
 
 ## Executor Phase Review Prompt
 
@@ -639,7 +675,7 @@ Context:
 Discussion:
 <work-folder>/<phase>/discussion.md
 
-Act only if control.md says Owner: executor, Status: awaiting-executor, and Phase: <phase>. Review the phase context for missing context, unstated assumptions, bias, contradictions, feasibility risks, and unclear acceptance criteria. Append Executor review - round N to discussion.md. If the phase is acceptable, write Alignment: aligned. If changes are needed, write clear findings and leave Alignment: pending. Do not edit product code. Return the baton by updating control.md to Owner: orchestrator and Status: awaiting-orchestrator with Target: <phase>/discussion.md and a concise event log entry. Do not create a separate monitor markdown file; control.md is the baton and discussion.md is the record. Keep the global control monitor running until Status is complete or user-decision-needed. If there have been more than six review/response turns without alignment, set Status: user-decision-needed in control.md and ask the Orchestrator to escalate to the user.
+Act only if control.md says Owner: executor, Status: awaiting-executor, and Phase: <phase>. Review the phase context for missing context, unstated assumptions, bias, contradictions, feasibility risks, and unclear acceptance criteria. Append Executor review - round N to discussion.md. If the phase is acceptable, write Alignment: aligned. If changes are needed, write clear findings and leave Alignment: pending. Do not edit product code. Return the baton by updating control.md to Owner: orchestrator and Status: awaiting-orchestrator with Target: <phase>/discussion.md and a concise event log entry. Do not create a separate monitor markdown file; control.md is the baton and discussion.md is the record. Keep the global control watcher running until Status is complete or user-decision-needed. If there have been more than six review/response turns without alignment, set Status: user-decision-needed in control.md and ask the Orchestrator to escalate to the user.
 ```
 
 ## Executor Task Prompt
@@ -656,7 +692,7 @@ Task context:
 Task execution:
 <work-folder>/task-N/execution.md
 
-Act only if control.md says Owner: executor, Status: awaiting-executor, and Phase: task-N. Implement only that task in this Executor session. Follow the task context exactly. Do not implement future tasks. Do not read sibling task folders unless the claimed task's context.md explicitly names them as dependencies. Record this session and workspace/worktree in execution.md, then set Status to in-progress. When complete, update execution.md with summary, files touched, commands run, deviations, and open questions. Set Status to awaiting-orchestrator-review. Return the baton by updating control.md to Owner: orchestrator and Status: awaiting-orchestrator with Target: task-N/execution.md and Next action: review-task. If control.md later assigns this same task with Next action: fix-task, resume this Executor flow and fix only the Orchestrator findings for this task. Do not create a separate monitor markdown file; control.md is the baton and execution.md is the record. Keep the global control monitor running until Status is complete or user-decision-needed.
+Act only if control.md says Owner: executor, Status: awaiting-executor, and Phase: task-N. Implement only that task in this Executor session. Follow the task context exactly. Do not implement future tasks. Do not read sibling task folders unless the claimed task's context.md explicitly names them as dependencies. Record this session and workspace/worktree in execution.md, then set Status to in-progress. When complete, update execution.md with summary, files touched, commands run, deviations, and open questions. Set Status to awaiting-orchestrator-review. Return the baton by updating control.md to Owner: orchestrator and Status: awaiting-orchestrator with Target: task-N/execution.md and Next action: review-task. If control.md later assigns this same task with Next action: fix-task, resume this Executor flow and fix only the Orchestrator findings for this task. Do not create a separate monitor markdown file; control.md is the baton and execution.md is the record. Keep the global control watcher running until Status is complete or user-decision-needed.
 ```
 
 ## Orchestrator Review Prompt

@@ -1,25 +1,23 @@
----
-name: resonance
-description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator, Claude Code CLI is a long-lived Executor, and both coordinate through a root control.md baton file. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance:orchestrator, /resonance:executor, and requests to implement with resonance.
----
-
 # Resonance
 
-Use resonance to coordinate a large change through durable markdown artifacts, one root control baton file, a long-lived Claude Code Executor session, and strict Orchestrator review gates.
+Use resonance to coordinate a large change through durable markdown artifacts, one root control baton file, a long-lived Executor session, and strict Orchestrator review gates.
 
-Personal runtime mapping:
+Runtime role mapping:
 
-- Treat Codex as the Orchestrator.
-- Treat Claude Code CLI as the Executor.
+- The agent/session that invokes `/resonance:orchestrator` is the Orchestrator for that run.
+- The agent/session that invokes `/resonance:executor <uuid>` is the Executor for that run.
+- Do not assume a specific product owns either role; Codex, Claude Code, or another supported agent can act as Orchestrator or Executor based on which command it invokes.
 - Treat `<work-folder>/control.md` as the only control-transfer surface.
-- Have the user start one Claude Code CLI Executor with `/resonance:executor <uuid>` after Orchestrator bootstrap.
-- Have Codex and Claude monitor `control.md`; put feature context, reviews, plans, and task completion notes in their phase/task files, not in `control.md`.
+- Have the user start one long-lived Executor session with `/resonance:executor <uuid>` after Orchestrator bootstrap.
+- Have both role sessions monitor `control.md`; put feature context, reviews, plans, and task completion notes in their phase/task files, not in `control.md`.
 
 ## Core Rule
 
 Never let an Executor move to another task until the Orchestrator approves the current task and explicitly assigns the next task through `control.md`.
 
 ## Invocation Modes
+
+Resonance is packaged as a plugin. Do not depend on any external resonance instructions. The plugin command files register `/resonance:orchestrator` and `/resonance:executor` in supported agents.
 
 Interpret these requests as Orchestrator mode. In Orchestrator mode, bootstrap the coordination files, return the Executor command to the user before creating feature context, and coordinate through `control.md`; do not act as the Executor for implementation tasks unless the user explicitly asks for a local dry run.
 
@@ -29,13 +27,13 @@ Let's implement <change> with resonance.
 Use resonance for <change>.
 ```
 
-Interpret these requests as Executor mode. Executor mode is meant to run inside a long-lived Claude Code CLI terminal session started by the user from the Orchestrator-provided command.
+Interpret these requests as Executor mode. Executor mode is meant to run inside a long-lived agent/session started by the user from the Orchestrator-provided command.
 
 ```text
 /resonance:executor <uuid>
 ```
 
-In Executor mode, locate the existing work folder by UUID, read `<work-folder>/control.md`, register the Executor session there, set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, start a Claude Code `Monitor` on the absolute `control.md` path, and wait for `Owner: executor`. Do not create a new work folder for an unknown UUID.
+In Executor mode, locate the existing work folder by UUID, read `<work-folder>/control.md`, register the Executor session there, set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, start the current agent's native monitor/watch on the absolute `control.md` path when available, and wait for `Owner: executor`. Do not create a new work folder for an unknown UUID.
 
 ## First Moves
 
@@ -49,17 +47,17 @@ In Executor mode, locate the existing work folder by UUID, read `<work-folder>/c
 8. Return this command to the user before writing brainstorm, plan, or task context:
 
 ```text
-Run this in Claude Code CLI:
+Run this in the agent/session that will act as Executor:
 
 /resonance:executor <uuid>
 ```
 
-9. Use this skill's `scripts/init_work_package.py` when it helps scaffold the folder and starter files.
+9. Use this plugin's `scripts/init_work_package.py` when it helps scaffold the folder and starter files.
 
 Example:
 
 ```bash
-python /path/to/resonance/scripts/init_work_package.py \
+python /path/to/plugins/resonance/scripts/init_work_package.py \
   --base-folder .resonance \
   --change-name "Add saved searches" \
   --user-request "Build saved search support end to end" \
@@ -71,15 +69,15 @@ The script prints the work folder and `/resonance:executor <uuid>` command.
 ## Orchestrator Workflow
 
 1. Bootstrap the work folder and `control.md`, then return `/resonance:executor <uuid>` to the user before substantive feature work.
-2. Create one Codex automation for the absolute `control.md` path when automation tools are available.
-3. Wait for the Executor to register its session and global `Monitor` in `control.md`, or proceed only if the user explicitly asks for an Orchestrator-only draft.
-4. Use Superpowers brainstorming when available to explore context, constraints, approaches, trade-offs, and acceptance criteria.
+2. Create one Orchestrator-side native monitor, automation, or follow-up for the absolute `control.md` path when the current agent supports it.
+3. Wait for the Executor to register its session and watcher in `control.md`, or proceed only if the user explicitly asks for an Orchestrator-only draft.
+4. Use the Superpowers brainstorming command/workflow when available to explore context, constraints, approaches, trade-offs, and acceptance criteria. If Superpowers is not available in the current agent, use that agent's best available brainstorming command, skill, plugin, or a structured brainstorming pass.
 5. Write the draft design direction into `<work-folder>/brainstorm/context.md`.
 6. Record the draft in `<work-folder>/brainstorm/discussion.md`.
 7. Update `control.md` with `Owner: executor`, `Status: awaiting-executor`, `Phase: brainstorm`, `Target: brainstorm/discussion.md`, and `Next action: review-brainstorm`.
 8. Let the Executor monitor wake, review `brainstorm/context.md`, append its thoughts to `brainstorm/discussion.md`, then return the baton with `Owner: orchestrator` and `Status: awaiting-orchestrator`.
 9. Repeat baton turns through `control.md` until both agents mark `Alignment: aligned` in `brainstorm/discussion.md`, then ask the user to approve the aligned brainstorm context.
-10. Use Superpowers writing-plans when available to create `<work-folder>/plan/context.md`.
+10. Use the Superpowers writing-plans command/workflow when available to create `<work-folder>/plan/context.md`. If Superpowers is not available in the current agent, use that agent's best available planning command, skill, plugin, or a structured implementation-planning pass.
 11. Hand off plan review through `control.md` with `Phase: plan`, `Target: plan/discussion.md`, and `Next action: review-plan`.
 12. Let baton turns continue until both agents mark `Alignment: aligned` in `plan/discussion.md`, then ask the user to approve the aligned plan context.
 13. Create one `task-N/` folder per approved task, each with `context.md` and `execution.md`.
@@ -95,11 +93,11 @@ If a phase or task exceeds six review/response turns without alignment or approv
 1. Locate the work folder by UUID.
 2. Read `<work-folder>/control.md`.
 3. Register the Executor session in `control.md` without adding feature context, then set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`.
-4. Start one Claude Code `Monitor` on the absolute `control.md` path.
+4. Start one native monitor/watch on the absolute `control.md` path when the current agent supports it.
 5. When `control.md` says `Owner: executor`, read only the target files named by `Target:` and the context files required for that `Next action:`.
 6. If reviewing a phase, read that phase's `context.md` and `discussion.md`, append an Executor review to `discussion.md`, then update `control.md` with `Owner: orchestrator`, `Status: awaiting-orchestrator`, and a concise completion note.
 7. If implementing a task, claim exactly the task named by `Phase: task-N`, confirm dependencies and write locks, implement only that task, record completion in `execution.md`, set task status to `awaiting-orchestrator-review`, then update `control.md` with `Owner: orchestrator`, `Status: awaiting-orchestrator`, and a concise completion note.
-8. Stop until the global `control.md` monitor wakes the session again.
+8. Stop until the global `control.md` watcher wakes the session again.
 
 Do not read sibling task folders unless the current task context explicitly names them as dependency inputs.
 
@@ -107,34 +105,34 @@ Do not read sibling task folders unless the current task context explicitly name
 
 Every resonance run uses one root baton file: `<work-folder>/control.md`. This file is only for control transfer. Do not store feature context, requirements, implementation details, review substance, or completion summaries longer than one concise status line in it.
 
-For Claude Code CLI v2.1.98 or later, the Executor must use Claude Code's built-in `Monitor` tool on `control.md` by default. Do not hand-write a shell monitor for normal runs. The Codex Orchestrator should create one Codex automation for the same absolute `control.md` path when automation tools are available.
+Each role should use the current agent's native monitor, automation, reminder, or follow-up mechanism on `control.md` when available. If the role session is Codex, use Codex app automations. If the role session is Claude Code, use Claude Code's built-in `Monitor` tool. For another supported agent, use that agent's equivalent. Do not hand-write a shell monitor for normal runs when a native watcher is available.
 
 Orchestrator duties:
 
 1. Create or update `control.md` whenever the baton changes.
-2. Create one Codex automation that watches `control.md`, responds only when `Owner: orchestrator` and `Status: awaiting-orchestrator`, and no-ops otherwise.
+2. Create one native monitor/automation that watches `control.md`, responds only when `Owner: orchestrator` and `Status: awaiting-orchestrator`, and no-ops otherwise.
 3. Put detailed Orchestrator responses in `brainstorm/discussion.md`, `plan/discussion.md`, or `task-N/execution.md`.
 4. Hand the baton to the Executor by setting `Owner: executor`, `Status: awaiting-executor`, `Phase: <phase-or-task>`, `Target: <relative-target-file>`, and `Next action: <action>`.
 5. Hand the baton to the user by setting `Owner: user` and `Status: awaiting-user`.
-6. Stop or delete the Codex automation when `Status: complete` or `Status: user-decision-needed`.
+6. Stop or delete the Orchestrator-side monitor/automation when `Status: complete` or `Status: user-decision-needed`.
 
 Executor duties:
 
-1. Register its session in `control.md`, set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, then start one Claude Code `Monitor` on the absolute `control.md` path.
+1. Register its session in `control.md`, set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, then start one native monitor/watch on the absolute `control.md` path when available.
 2. Wake only when `Owner: executor` and `Status: awaiting-executor`.
 3. Read `Phase:`, `Target:`, and `Next action:` to decide which phase/task files to inspect.
 4. Write detailed Executor output to the target `discussion.md` or `execution.md` file.
 5. Return the baton by setting `Owner: orchestrator`, `Status: awaiting-orchestrator`, `Updated by: executor`, and a concise event log entry.
-6. Keep the global monitor running until `Status: complete` or `Status: user-decision-needed`.
+6. Keep the global watcher running until `Status: complete` or `Status: user-decision-needed`.
 
-Use `<work-folder>/terminal/monitors/` only for fallback shell monitor artifacts when Claude Code `Monitor` is unavailable:
+Use the plugin-owned `scripts/fallback_monitor_control.sh` only when the current agent has no usable native monitor/watch. Agents must run that script instead of creating a custom shell watcher. Use `<work-folder>/terminal/monitors/` only for fallback log and pid artifacts:
 
 ```text
-fallback-monitor-control.sh
 fallback-monitor-control.log
+fallback-monitor-control.pid
 ```
 
-The monitor contract is required for real resonance runs. Skip it only for an explicitly local dry run, unavailable automation tools, unavailable Claude Code `Monitor` support, or a user-approved headless smoke test; record the skip or fallback reason in `<work-folder>/control.md`.
+The monitor contract is required for real resonance runs. Skip it only for an explicitly local dry run, unavailable automation tools, unavailable native monitor/watch support, or a user-approved headless smoke test; record the skip or fallback reason in `<work-folder>/control.md`.
 
 ## Review Rules
 
@@ -182,14 +180,14 @@ Plan work as a dependency graph, not only as a numbered list.
 The Orchestrator does not spawn phase or task Executor terminals by default. After bootstrap, show the user:
 
 ```text
-Run this in Claude Code CLI:
+Run this in the agent/session that will act as Executor:
 
 /resonance:executor <uuid>
 ```
 
 The Executor command starts a long-lived session. That session monitors `control.md`, performs only the action currently assigned to `Owner: executor`, writes detailed work to the target file, and returns the baton through `control.md`.
 
-If a headless run is explicitly needed, reuse the same `query` shape with a transient log:
+If a Claude Code headless Executor run is explicitly needed, reuse the same `query` shape with a transient log. For other agents, adapt this pattern to that agent's CLI while keeping the same `/resonance:executor <uuid>` query and transient logging rules:
 
 ```bash
 #!/usr/bin/env bash
