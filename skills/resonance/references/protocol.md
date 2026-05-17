@@ -48,7 +48,7 @@ The work folder is the source of truth. The base index is only a lookup convenie
 
 ## UUID Lookup
 
-When invoked as `/resonance executor <uuid>`, locate the work folder before acting:
+When invoked as `/resonance:executor <uuid>`, locate the work folder before acting:
 
 1. Search the repo's documented resonance base folder.
 2. Search `.resonance` and `docs/resonance`.
@@ -88,7 +88,7 @@ The Orchestrator does not spawn phase or task Executor sessions by default. Afte
 ```text
 Run this in Claude Code CLI:
 
-/resonance executor <uuid>
+/resonance:executor <uuid>
 ```
 
 The user starts one long-lived Claude Code CLI Executor session. That Executor locates the work folder by UUID, registers itself in `control.md`, sets `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, starts a global Claude Code `Monitor` on the absolute `control.md` path, and waits for `Owner: executor`.
@@ -124,7 +124,7 @@ Workspace/worktree: unset
 
 ## Event Log
 
-- YYYY-MM-DDTHH:MM:SSZ orchestrator: bootstrap created; waiting for Executor to start `/resonance executor <uuid>`.
+- YYYY-MM-DDTHH:MM:SSZ orchestrator: bootstrap created; waiting for Executor to start `/resonance:executor <uuid>`.
 ```
 
 Allowed `Owner:` values: `orchestrator`, `executor`, `user`, `none`.
@@ -147,7 +147,7 @@ mkdir -p "<work-folder>/terminal/logs"
 
 # Same heredoc rules as the visible runner above.
 IFS= read -r -d '' query <<'EOF' || true
-/resonance executor <uuid>
+/resonance:executor <uuid>
 EOF
 
 claude -p \
@@ -302,7 +302,7 @@ Workspace/worktree: unset
 
 ## Event Log
 
-- YYYY-MM-DDTHH:MM:SSZ orchestrator: bootstrap created; waiting for Executor to start `/resonance executor <uuid>`.
+- YYYY-MM-DDTHH:MM:SSZ orchestrator: bootstrap created; waiting for Executor to start `/resonance:executor <uuid>`.
 ```
 
 ## Brainstorm Context Template
@@ -625,7 +625,7 @@ Executor monitor behavior:
 ## Executor Phase Review Prompt
 
 ```text
-Run /resonance executor <uuid>. You are reviewing a resonance phase, not implementing product code.
+Run /resonance:executor <uuid>. You are reviewing a resonance phase, not implementing product code.
 
 Phase:
 brainstorm | plan
@@ -645,7 +645,7 @@ Act only if control.md says Owner: executor, Status: awaiting-executor, and Phas
 ## Executor Task Prompt
 
 ```text
-Run /resonance executor <uuid>. You are implementing one task from resonance.
+Run /resonance:executor <uuid>. You are implementing one task from resonance.
 
 Plan:
 <work-folder>/plan/context.md

@@ -66,7 +66,7 @@ Workspace/worktree: unset
 
 ## Event Log
 
-- {now} orchestrator: bootstrap created; waiting for Executor to start `/resonance executor {work_uuid}`.
+- {now} orchestrator: bootstrap created; waiting for Executor to start `/resonance:executor {work_uuid}`.
 """
 
 
@@ -390,7 +390,7 @@ def main() -> int:
 
     if args.bootstrap_only:
         print(work_folder)
-        print(f"/resonance executor {work_uuid}")
+        print(f"/resonance:executor {work_uuid}")
         return 0
 
     write_once(
@@ -410,7 +410,7 @@ def main() -> int:
         write_once(task_dir / "execution.md", task_execution(index, today, work_uuid, status))
 
     print(work_folder)
-    print(f"/resonance executor {work_uuid}")
+    print(f"/resonance:executor {work_uuid}")
     return 0
 
 

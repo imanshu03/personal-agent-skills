@@ -40,7 +40,7 @@ python3 skills/resonance/scripts/init_work_package.py \
   --bootstrap-only
 ```
 
-Resonance stores coordination files under a base folder (default `.resonance` or `docs/resonance`) chosen on first use. Bootstrap prints the `/resonance executor <uuid>` command to run in Claude Code CLI.
+Resonance stores coordination files under a base folder (default `.resonance` or `docs/resonance`) chosen on first use. Bootstrap prints the `/resonance:executor <uuid>` command to run in Claude Code CLI.
 
 ## Install
 

@@ -1,6 +1,6 @@
 ---
 name: resonance
-description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator, Claude Code CLI is a long-lived Executor, and both coordinate through a root control.md baton file. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance orchestrator, /resonance executor, and requests to implement with resonance.
+description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator, Claude Code CLI is a long-lived Executor, and both coordinate through a root control.md baton file. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance:orchestrator, /resonance:executor, and requests to implement with resonance.
 ---
 
 # Resonance
@@ -12,7 +12,7 @@ Personal runtime mapping:
 - Treat Codex as the Orchestrator.
 - Treat Claude Code CLI as the Executor.
 - Treat `<work-folder>/control.md` as the only control-transfer surface.
-- Have the user start one Claude Code CLI Executor with `/resonance executor <uuid>` after Orchestrator bootstrap.
+- Have the user start one Claude Code CLI Executor with `/resonance:executor <uuid>` after Orchestrator bootstrap.
 - Have Codex and Claude monitor `control.md`; put feature context, reviews, plans, and task completion notes in their phase/task files, not in `control.md`.
 
 ## Core Rule
@@ -24,7 +24,7 @@ Never let an Executor move to another task until the Orchestrator approves the c
 Interpret these requests as Orchestrator mode. In Orchestrator mode, bootstrap the coordination files, return the Executor command to the user before creating feature context, and coordinate through `control.md`; do not act as the Executor for implementation tasks unless the user explicitly asks for a local dry run.
 
 ```text
-/resonance orchestrator
+/resonance:orchestrator
 Let's implement <change> with resonance.
 Use resonance for <change>.
 ```
@@ -32,7 +32,7 @@ Use resonance for <change>.
 Interpret these requests as Executor mode. Executor mode is meant to run inside a long-lived Claude Code CLI terminal session started by the user from the Orchestrator-provided command.
 
 ```text
-/resonance executor <uuid>
+/resonance:executor <uuid>
 ```
 
 In Executor mode, locate the existing work folder by UUID, read `<work-folder>/control.md`, register the Executor session there, set `Owner: orchestrator`, `Status: awaiting-orchestrator`, and `Next action: executor-ready`, start a Claude Code `Monitor` on the absolute `control.md` path, and wait for `Owner: executor`. Do not create a new work folder for an unknown UUID.
@@ -51,7 +51,7 @@ In Executor mode, locate the existing work folder by UUID, read `<work-folder>/c
 ```text
 Run this in Claude Code CLI:
 
-/resonance executor <uuid>
+/resonance:executor <uuid>
 ```
 
 9. Use this skill's `scripts/init_work_package.py` when it helps scaffold the folder and starter files.
@@ -66,11 +66,11 @@ python /path/to/resonance/scripts/init_work_package.py \
   --bootstrap-only
 ```
 
-The script prints the work folder and `/resonance executor <uuid>` command.
+The script prints the work folder and `/resonance:executor <uuid>` command.
 
 ## Orchestrator Workflow
 
-1. Bootstrap the work folder and `control.md`, then return `/resonance executor <uuid>` to the user before substantive feature work.
+1. Bootstrap the work folder and `control.md`, then return `/resonance:executor <uuid>` to the user before substantive feature work.
 2. Create one Codex automation for the absolute `control.md` path when automation tools are available.
 3. Wait for the Executor to register its session and global `Monitor` in `control.md`, or proceed only if the user explicitly asks for an Orchestrator-only draft.
 4. Use Superpowers brainstorming when available to explore context, constraints, approaches, trade-offs, and acceptance criteria.
@@ -184,7 +184,7 @@ The Orchestrator does not spawn phase or task Executor terminals by default. Aft
 ```text
 Run this in Claude Code CLI:
 
-/resonance executor <uuid>
+/resonance:executor <uuid>
 ```
 
 The Executor command starts a long-lived session. That session monitors `control.md`, performs only the action currently assigned to `Owner: executor`, writes detailed work to the target file, and returns the baton through `control.md`.
@@ -204,7 +204,7 @@ cd "<absolute-repo-or-worktree-path>"
 mkdir -p "<work-folder>/terminal/logs"
 
 IFS= read -r -d '' query <<'EOF' || true
-/resonance executor <uuid>
+/resonance:executor <uuid>
 EOF
 
 claude -p \
