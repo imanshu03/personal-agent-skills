@@ -7,6 +7,7 @@ Use this reference for exact artifact shapes, status values, and coordination pr
 - Storage model
 - UUID lookup
 - Core artifacts
+- Warp dispatch contract
 - Phase alignment
 - Task status state machine
 - Artifact templates
@@ -45,7 +46,7 @@ The work folder is the source of truth. The base index is only a lookup convenie
 
 ## UUID Lookup
 
-When invoked as `/resonance:executor <uuid>`, locate the work folder before acting:
+When invoked as `/resonance executor <uuid>`, locate the work folder before acting:
 
 1. Search the repo's documented resonance base folder.
 2. Search `.resonance` and `docs/resonance`.
@@ -69,6 +70,125 @@ Create these durable markdown files before implementation starts:
 - `<work-folder>/plan/discussion.md`: mutable plan review log.
 - `<work-folder>/task-N/context.md`: stable task-level instructions and review checklist.
 - `<work-folder>/task-N/execution.md`: live task coordination, status, completion notes, review rounds.
+- `<work-folder>/warp/window.md`: feature-level Warp dispatch record, including window handle when available, fallback behavior, runner scripts, launch configs, logs, and sentinel files.
+- `<work-folder>/warp/prompts/<phase-or-task>.txt`: prompt passed to Claude Code for a visible Executor session.
+- `<work-folder>/warp/run-<phase-or-task>-executor.sh`: optional runner script for one Claude Code Executor session.
+- `<work-folder>/warp/logs/<phase-or-task>.log`: optional captured Executor output for explicit headless runs.
+- `<work-folder>/warp/<phase-or-task>.done`: optional sentinel file written when a launched Executor command exits.
+
+## Warp Dispatch Contract
+
+Use Warp as the terminal runtime by opening one feature-level Warp window and then launching one Claude Code Executor tab per phase or task.
+
+### Public Warp Commands
+
+Warp's public URI scheme supports these commands:
+
+```bash
+open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"
+open "warp://action/new_tab?path=<absolute-repo-or-worktree-path>"
+open "warp://launch/<launch-configuration-name-or-path>"
+```
+
+Warp launch configuration files live in `$HOME/.warp/launch_configurations/` on macOS. A launch configuration can set tab title, working directory, and startup commands.
+
+### Feature Window Record
+
+Before dispatching the brainstorm review, create `<work-folder>/warp/window.md`:
+
+```markdown
+# Warp Window
+
+**Date:** YYYY-MM-DD
+**UUID:** <uuid>
+**Feature window title:** resonance:<short-uuid>
+**Repo/worktree:** <absolute-repo-or-worktree-path>
+**Open window command:** `open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"`
+**Window handle:** <captured-id | unavailable>
+**Handle source:** <command or reason unavailable>
+**New tab command template:** <command or unavailable>
+**Launch config folder:** `$HOME/.warp/launch_configurations`
+
+## Dispatches
+
+- brainstorm: <runner path>, <launch config>, <log path>, <sentinel path>, <status>
+```
+
+Try to capture the feature window handle only if the local machine exposes one. On macOS, this may require Accessibility permission:
+
+```bash
+feature_window_id="$(
+  osascript -e 'tell application "System Events" to tell process "Warp" to get id of front window' 2>/dev/null || true
+)"
+```
+
+If the command returns an empty value or an error, write `Window handle: unavailable` and continue with launch configurations. Do not invent or assume a `window_id` URI parameter; use it only when the local Warp command template explicitly supports it.
+
+### Per-Session Runner
+
+For every phase review and task execution, create a runner script under `<work-folder>/warp/`. Default to `claude "<query>"` without `-p` so the user can watch the Claude Code session in Warp. Use `-p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "<absolute-repo-or-worktree-path>"
+printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
+mkdir -p "<work-folder>/warp/logs"
+mkdir -p "<work-folder>/warp/prompts"
+
+prompt_file="<work-folder>/warp/prompts/<phase-or-task>.txt"
+cat > "$prompt_file" <<'EOF'
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute paths>
+EOF
+
+claude \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$(<"$prompt_file")"
+
+touch "<work-folder>/warp/<phase-or-task>.done"
+```
+
+Use `--allowedTools Read,Write,Edit,Bash` for task execution when the task context permits file creation. Keep phase reviews read/edit-only for discussion files.
+
+For explicit headless runs, reuse the prompt file:
+
+```bash
+claude -p \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$(<"$prompt_file")" 2>&1 | tee "<work-folder>/warp/logs/<phase-or-task>.log"
+```
+
+### Launch Configuration
+
+Create one launch configuration per session:
+
+```yaml
+---
+name: resonance-<short-uuid>-<phase-or-task>
+windows:
+  - tabs:
+      - title: resonance:<short-uuid>:<phase-or-task>
+        layout:
+          cwd: <absolute-repo-or-worktree-path>
+          commands:
+            - exec: bash <absolute-runner-script-path>
+        color: blue
+```
+
+Launch it with:
+
+```bash
+open "warp://launch/resonance-<short-uuid>-<phase-or-task>.yaml"
+```
+
+If a verified local focus command exists for the captured feature window handle, focus that feature window before launching the next tab/config. If not, launch the config anyway and record the fallback in `<work-folder>/warp/window.md`.
 
 ## Phase Alignment
 
@@ -76,7 +196,7 @@ Brainstorm and plan phases use the same loop:
 
 1. Orchestrator writes or updates phase `context.md`.
 2. Orchestrator appends `### Orchestrator draft - round N` to `discussion.md`.
-3. Orchestrator dispatches `/resonance:executor <uuid> <phase>`.
+3. Orchestrator dispatches `/resonance executor <uuid> <phase>`.
 4. Executor reviews the phase context and appends `### Executor review - round N`.
 5. Executor creates a temporary monitor for the phase discussion file.
 6. Codex review automation responds in `### Orchestrator response - round N`.
@@ -431,7 +551,7 @@ Automation behavior:
 ## Executor Phase Review Prompt
 
 ```text
-Run /resonance:executor <uuid> <phase>. You are reviewing a resonance phase, not implementing product code.
+Run /resonance executor <uuid> <phase>. You are reviewing a resonance phase, not implementing product code.
 
 Phase:
 brainstorm | plan
@@ -448,7 +568,7 @@ Review the phase context for missing context, unstated assumptions, bias, contra
 ## Executor Task Prompt
 
 ```text
-Run /resonance:executor <uuid>. You are implementing one task from resonance.
+Run /resonance executor <uuid>. You are implementing one task from resonance.
 
 Plan:
 <work-folder>/plan/context.md
@@ -490,7 +610,7 @@ Plan:
 Task folders:
 <work-folder>/task-*/
 
-Read the plan, each task context.md, and each task execution.md. Mark blocked tasks as not-started only when their dependencies are approved. Select ready tasks whose write locks do not overlap. For each selected task, create a Codex review automation for the absolute task execution.md path at a 4-minute interval, then open a separate Warp window/tab in the assigned repo/worktree, rename it to resonance:<short-uuid>:task-N, and run Claude Code CLI with /resonance:executor <uuid> task-N. Do not dispatch tasks with overlapping write locks in the same wave. Summarize dispatched tasks, skipped tasks, and why each skipped task was not ready.
+Read the plan, each task context.md, each task execution.md, and <work-folder>/warp/window.md. Mark blocked tasks as not-started only when their dependencies are approved. Select ready tasks whose write locks do not overlap. For each selected task, create a Codex review automation for the absolute task execution.md path at a 4-minute interval. Create a per-task runner script and Warp launch configuration under <work-folder>/warp/. If a feature Warp window handle and verified focus command are available, focus that feature window first; otherwise record the fallback in window.md. Launch the task in its own Warp tab/config, rename it to resonance:<short-uuid>:task-N, and run Claude Code CLI with /resonance executor <uuid> task-N. Do not dispatch tasks with overlapping write locks in the same wave. Summarize dispatched tasks, skipped tasks, and why each skipped task was not ready.
 ```
 
 ## Endgame

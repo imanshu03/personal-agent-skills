@@ -1,4 +1,4 @@
 interface:
   display_name: "Resonance"
-  short_description: "Coordinate two-agent review-gated work"
-  default_prompt: "Use $resonance to plan and execute this change with review-gated Orchestrator and Executor sessions."
+  short_description: "Launch Warp-based Claude executors"
+  default_prompt: "Use $resonance to plan this change, open a feature Warp window, and dispatch Claude Code Executor tabs for each reviewed phase and task."

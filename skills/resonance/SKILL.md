@@ -1,18 +1,18 @@
 ---
 name: resonance
-description: Coordinate large changes through a review-gated two-agent workflow where Codex acts as Orchestrator and Claude Code CLI acts as Executor. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance:orchestrator, /resonance:executor, and requests to implement work with resonance.
+description: Coordinate large changes through a review-gated Orchestrator/Executor workflow where Codex is the Orchestrator and must create or dispatch Claude Code CLI Executor sessions in Warp or another terminal. Use when a feature, bug fix, refactor, migration, documentation change, design implementation, or release task is large enough to split into ordered tasks with strict brainstorm, plan, execution, review, and final-verification gates; also use for /resonance orchestrator, /resonance executor, requests to implement with resonance, and requests to launch Warp-based Claude Code Executor sessions for a resonance task.
 ---
 
 # Resonance
 
-Use resonance to coordinate a large change through durable markdown artifacts, separate Executor sessions, and strict Orchestrator review gates.
+Use resonance to coordinate a large change through durable markdown artifacts, terminal-launched Claude Code Executor sessions, and strict Orchestrator review gates.
 
 Personal runtime mapping:
 
 - Treat Codex as the Orchestrator.
 - Treat Claude Code CLI as the Executor.
 - Treat Warp as the terminal runtime.
-- Run each phase review or task execution in its own Claude Code CLI session, opened from a dedicated Warp tab or window.
+- Have the Orchestrator open one feature-level Warp window when possible, record its handle, and dispatch each phase review or task execution as its own Claude Code CLI session in a dedicated Warp tab for that feature.
 
 ## Core Rule
 
@@ -20,21 +20,21 @@ Never let an Executor move to another task until the Orchestrator approves the c
 
 ## Invocation Modes
 
-Interpret these requests as Orchestrator mode:
+Interpret these requests as Orchestrator mode. In Orchestrator mode, create the coordination files and dispatch terminal-based Claude Code Executor sessions; do not act as the Executor for implementation tasks unless the user explicitly asks for a local dry run.
 
 ```text
-/resonance:orchestrator
+/resonance orchestrator
 Let's implement <change> with resonance.
 Use resonance for <change>.
 ```
 
-Interpret these requests as Executor mode:
+Interpret these requests as Executor mode. Executor mode is meant to run inside a Claude Code CLI terminal session created by the Orchestrator.
 
 ```text
-/resonance:executor <uuid>
-/resonance:executor <uuid> task-N
-/resonance:executor <uuid> brainstorm
-/resonance:executor <uuid> plan
+/resonance executor <uuid>
+/resonance executor <uuid> task-N
+/resonance executor <uuid> brainstorm
+/resonance executor <uuid> plan
 ```
 
 In Executor mode, locate the existing work folder by UUID before doing anything else. Do not create a new work folder for an unknown UUID.
@@ -47,12 +47,12 @@ In Executor mode, locate the existing work folder by UUID before doing anything 
 4. Generate a UUID and a change slug.
 5. Create `<base-folder>/<change-slug>-<uuid>/`.
 6. Create or update `<base-folder>/index.md`.
-7. Use `scripts/init_work_package.py` when it helps scaffold the folder and starter files.
+7. Use this skill's `scripts/init_work_package.py` when it helps scaffold the folder and starter files.
 
 Example:
 
 ```bash
-python /Users/imanshurathore/.codex/skills/resonance/scripts/init_work_package.py \
+python /path/to/resonance/scripts/init_work_package.py \
   --base-folder .resonance \
   --change-name "Add saved searches" \
   --user-request "Build saved search support end to end"
@@ -64,11 +64,11 @@ python /Users/imanshurathore/.codex/skills/resonance/scripts/init_work_package.p
 2. Write the draft design direction into `<work-folder>/brainstorm/context.md`.
 3. Record the draft and review loop in `<work-folder>/brainstorm/discussion.md`.
 4. Create a Codex review automation for the absolute brainstorm discussion path when automation tools are available.
-5. Dispatch a Claude Code CLI Executor phase review in Warp with `/resonance:executor <uuid> brainstorm`.
+5. Dispatch a Claude Code CLI Executor phase review in a terminal/Warp session with `/resonance executor <uuid> brainstorm`.
 6. Iterate until both agents mark `Alignment: aligned`.
 7. Ask the user to approve the aligned brainstorm context before planning.
 8. Use Superpowers writing-plans when available to create `<work-folder>/plan/context.md`.
-9. Review the plan through `<work-folder>/plan/discussion.md` with `/resonance:executor <uuid> plan`.
+9. Dispatch a Claude Code CLI Executor plan review in a terminal/Warp session with `/resonance executor <uuid> plan`.
 10. Iterate until both agents mark `Alignment: aligned`.
 11. Ask the user to approve the aligned plan context before implementation.
 12. Create one `task-N/` folder per approved task, each with `context.md` and `execution.md`.
@@ -140,24 +140,103 @@ Plan work as a dependency graph, not only as a numbered list.
 
 ## Warp Dispatch
 
-Use the local Warp launch command if known. The command must:
+Use Warp's URI scheme or launch configurations. Do not paste commands into Warp with UI keystrokes unless the user explicitly approves that local fallback.
 
-1. Open Warp.
-2. Set the working directory to the repo root or assigned worktree.
-3. Rename the tab with `resonance:<short-uuid>:<phase-or-task>`.
-4. Start Claude Code CLI with the matching `/resonance:executor ...` command.
-
-Conceptual template:
-
-```text
-<open-warp-command> --cwd <absolute-repo-or-worktree-path> --title resonance:<short-uuid>:<phase-or-task> -- <claude-code-cli> "/resonance:executor <uuid> <phase-or-task>"
-```
-
-If tab renaming happens inside the shell, run:
+Public Warp URI commands:
 
 ```bash
-printf '\033]0;%s\007' 'resonance:<short-uuid>:<phase-or-task>'
+open "warp://action/new_window?path=<absolute-repo-or-worktree-path>"
+open "warp://action/new_tab?path=<absolute-repo-or-worktree-path>"
+open "warp://launch/<launch-configuration-name-or-path>"
 ```
+
+Feature-window protocol:
+
+1. Open one Warp window for the feature before the brainstorm Executor review.
+2. Try to capture a local feature window handle if the machine exposes one.
+3. Record the handle and dispatch templates in `<work-folder>/warp/window.md`.
+4. Open each phase/task in a separate tab in that feature window.
+5. If no window handle can be captured or focused, record `Window handle: unavailable` and use Warp launch configurations as the fallback.
+
+Window handle capture is environment-specific. On macOS, this may require Accessibility permission:
+
+```bash
+feature_window_id="$(
+  osascript -e 'tell application "System Events" to tell process "Warp" to get id of front window' 2>/dev/null || true
+)"
+```
+
+Do not assume Warp accepts `window_id` in URI parameters unless the local Warp command template explicitly supports it. Warp's public URI scheme supports new windows, new tabs, and launch configurations; deterministic same-window targeting requires a verified local focus/window command.
+
+Every dispatch must create a runner script or launch configuration that:
+
+1. Sets the working directory to the repo root or assigned worktree.
+2. Renames the tab with `resonance:<short-uuid>:<phase-or-task>`.
+3. Starts a visible Claude Code CLI session with the matching `/resonance executor ...` prompt.
+4. Writes the prompt under `<work-folder>/warp/prompts/`.
+5. Writes a sentinel such as `<work-folder>/warp/<phase-or-task>.done` when the Claude Code session exits.
+
+Use `claude "<query>"` as the default Warp invocation so the user can watch the Executor session. Use `claude -p` only for explicit headless smoke tests, CI-like checks, or when the user asks for non-interactive execution.
+
+Runner script shape:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "<absolute-repo-or-worktree-path>"
+printf '\033]0;%s\007' "resonance:<short-uuid>:<phase-or-task>"
+mkdir -p "<work-folder>/warp/logs"
+mkdir -p "<work-folder>/warp/prompts"
+
+prompt_file="<work-folder>/warp/prompts/<phase-or-task>.txt"
+cat > "$prompt_file" <<'EOF'
+/resonance executor <uuid> <phase-or-task>
+
+<phase-or-task prompt with absolute context paths>
+EOF
+
+claude \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$(<"$prompt_file")"
+
+touch "<work-folder>/warp/<phase-or-task>.done"
+```
+
+If a headless run is explicitly needed, use the same prompt file with:
+
+```bash
+claude -p \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Bash \
+  --append-system-prompt "You are Claude Code CLI running as the resonance Executor. Follow Executor mode exactly." \
+  "$(<"$prompt_file")" 2>&1 | tee "<work-folder>/warp/logs/<phase-or-task>.log"
+```
+
+Launch configuration shape:
+
+```text
+---
+name: resonance-<short-uuid>-<phase-or-task>
+windows:
+  - tabs:
+      - title: resonance:<short-uuid>:<phase-or-task>
+        layout:
+          cwd: <absolute-repo-or-worktree-path>
+          commands:
+            - exec: bash <absolute-runner-script-path>
+        color: blue
+```
+
+Place launch configs in `$HOME/.warp/launch_configurations/`, then launch with:
+
+```bash
+open "warp://launch/resonance-<short-uuid>-<phase-or-task>.yaml"
+```
+
+For same-window dispatch, first focus the recorded feature window using the local verified command if one exists, then launch the new tab/config. If focus fails, continue with the launch configuration fallback and record the fallback in `<work-folder>/warp/window.md`.
 
 ## Reference
 
