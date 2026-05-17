@@ -629,7 +629,7 @@ Create one role-appropriate watcher for `<work-folder>/control.md` after bootstr
 
 Recommended intervals:
 
-- Control baton monitor: every 2 minutes.
+- Control baton monitor: every 10 seconds.
 
 Automation names:
 
