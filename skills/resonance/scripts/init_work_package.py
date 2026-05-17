@@ -39,6 +39,37 @@ def append_index(index_path: Path, row: str, header: str) -> None:
         handle.write(row)
 
 
+def control_file(today: str, now: str, work_uuid: str, work: str) -> str:
+    return f"""# Resonance Control
+
+**Date:** {today}
+**UUID:** {work_uuid}
+**Work folder:** {work}
+**Control purpose:** baton only; no feature context or review substance
+
+## Baton
+
+Owner: orchestrator
+Status: executor-start-needed
+Phase: bootstrap
+Target: control.md
+Next action: start-executor
+Round: 0
+Updated by: orchestrator
+Updated at: {now}
+
+## Executor
+
+Session: unregistered
+Monitor: unregistered
+Workspace/worktree: unset
+
+## Event Log
+
+- {now} orchestrator: bootstrap created; waiting for Executor to start `/resonance executor {work_uuid}`.
+"""
+
+
 def brainstorm_context(change: str, request: str, today: str, work_uuid: str, base: str, work: str) -> str:
     return f"""# {change} Brainstorm Context
 
@@ -162,7 +193,7 @@ Record implementation approach and boundaries.
 ## Parallel Execution Plan
 
 - Define execution waves and write-lock constraints.
-- Use one Executor session per active task.
+- Use the long-lived Executor session for assigned tasks.
 - Prefer one isolated worktree per active Executor session.
 
 ## Final Verification
@@ -221,7 +252,7 @@ def task_context(index: int, today: str, work_uuid: str) -> str:
 **Depends on:** none
 **Parallel group:** wave-1
 **Write locks:** unset
-**Recommended session:** fresh Executor session
+**Recommended session:** long-lived Executor session
 **Recommended workspace:** isolated worktree preferred
 
 ## Goal
@@ -325,6 +356,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tasks", type=int, default=0, help="Number of task folders to scaffold")
     parser.add_argument("--repo-root", default=".", help="Repository root for resolving relative paths")
     parser.add_argument("--include-plan", action="store_true", help="Create plan files before tasks are known")
+    parser.add_argument("--bootstrap-only", action="store_true", help="Create only the work folder, index row, and control.md")
     return parser.parse_args()
 
 
@@ -346,13 +378,20 @@ def main() -> int:
     work_folder.mkdir(parents=True, exist_ok=False)
 
     today = dt.date.today().isoformat()
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     request = args.user_request or "Record the original user request."
     relative_base = str(base_folder.relative_to(repo_root)) if base_folder.is_relative_to(repo_root) else str(base_folder)
     relative_work = str(work_folder.relative_to(repo_root)) if work_folder.is_relative_to(repo_root) else str(work_folder)
 
     index_header = "# Resonance Work Index\n\n| UUID | Change | Work folder | State | Active tasks |\n| --- | --- | --- | --- | --- |\n"
-    index_row = f"| {work_uuid} | {args.change_name} | `{relative_work}` | brainstorm-draft | none |\n"
+    index_row = f"| {work_uuid} | {args.change_name} | `{relative_work}` | executor-start-needed | none |\n"
     append_index(base_folder / "index.md", index_row, index_header)
+    write_once(work_folder / "control.md", control_file(today, now, work_uuid, str(work_folder)))
+
+    if args.bootstrap_only:
+        print(work_folder)
+        print(f"/resonance executor {work_uuid}")
+        return 0
 
     write_once(
         work_folder / "brainstorm" / "context.md",
@@ -371,6 +410,7 @@ def main() -> int:
         write_once(task_dir / "execution.md", task_execution(index, today, work_uuid, status))
 
     print(work_folder)
+    print(f"/resonance executor {work_uuid}")
     return 0
 
 

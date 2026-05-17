@@ -1,4 +1,4 @@
 interface:
   display_name: "Resonance"
-  short_description: "Launch Codex-terminal Claude executors"
-  default_prompt: "Use $resonance to plan this change and dispatch Claude Code Executor sessions in the Codex app terminal for each reviewed phase and task."
+  short_description: "Coordinate via control baton"
+  default_prompt: "Use $resonance to bootstrap this change, create control.md, return the /resonance executor <uuid> command, and coordinate with the long-lived Claude Code Executor through the control baton."

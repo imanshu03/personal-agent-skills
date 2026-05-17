@@ -20,7 +20,7 @@ Skills live under `skills/<skill-name>/` so the repository can grow as a library
 ## Current Skills
 
 - `agent-handover`: Creates a durable handover package for moving an active coding task between Claude and Codex.
-- `resonance`: Coordinates large changes through a review-gated two-agent workflow where Codex acts as Orchestrator and Claude Code CLI acts as Executor, with strict brainstorm, plan, execution, review, and final-verification gates.
+- `resonance`: Coordinates large changes through a review-gated two-agent workflow where Codex acts as Orchestrator, Claude Code CLI acts as a long-lived Executor, and both pass control through a root `control.md` baton file.
 
 Configure where a repository stores handover documents with:
 
@@ -36,10 +36,11 @@ Scaffold a new resonance work package with:
 python3 skills/resonance/scripts/init_work_package.py \
   --base-folder .resonance \
   --change-name "Short change name" \
-  --user-request "Original user request"
+  --user-request "Original user request" \
+  --bootstrap-only
 ```
 
-Resonance stores coordination files under a base folder (default `.resonance` or `docs/resonance`) chosen on first use.
+Resonance stores coordination files under a base folder (default `.resonance` or `docs/resonance`) chosen on first use. Bootstrap prints the `/resonance executor <uuid>` command to run in Claude Code CLI.
 
 ## Install
 
