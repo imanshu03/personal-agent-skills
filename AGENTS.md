@@ -4,7 +4,7 @@ This repository contains personal agent skills and plugins. Treat it as a small 
 
 ## Repository Layout
 
-- `skills/agent-handover/SKILL.md`: Skill definition and workflow for transferring task context between agents.
+- `skills/fast-turtle/SKILL.md`: Single-model, agent-agnostic structured build orchestration (gated brainstorm → architecture → plan + dependency-DAG → parallel milestone execution → per-milestone review → final verification), with `skills/fast-turtle/references/orchestration-recipe.md` holding the fan-out pattern and ledger templates.
 - `plugins/resonance/`: Claude Code and Codex plugin for review-gated two-agent coordination where the invoking agent/session chooses the Orchestrator or Executor role, including `/resonance:orchestrator` and `/resonance:executor` command files.
 - `.claude-plugin/marketplace.json`: Claude Code marketplace entry for repo-local plugins.
 - `.agents/plugins/marketplace.json`: Codex marketplace entry for repo-local plugins.
@@ -36,7 +36,7 @@ npx skills add https://github.com/imanshu03/personal-agent-skills.git/skills --s
 Use the directory name under `skills/` as `<skill-name>`. For example:
 
 ```bash
-npx skills add https://github.com/imanshu03/personal-agent-skills.git/skills --skill agent-handover
+npx skills add https://github.com/imanshu03/personal-agent-skills.git/skills --skill fast-turtle
 ```
 
 ## Update Convention
@@ -50,7 +50,7 @@ npx skills update <skill-name> -g -y
 For example:
 
 ```bash
-npx skills update agent-handover -g -y
+npx skills update fast-turtle -g -y
 ```
 
 If users installed global symlinks for Claude and Codex, explain that updating the global skill copy updates both agent installs. Remind users to restart active agent sessions after updating.
@@ -66,4 +66,4 @@ npx skills add https://github.com/imanshu03/personal-agent-skills.git/skills --s
 
 This repository currently uses git history as the source of truth for skill updates. The `npx skills update` command is the user-facing update mechanism.
 
-For human-visible releases, prefer git tags named per skill, such as `agent-handover-v0.1.0`, and summarize changes in GitHub releases or release notes. Do not add an ad hoc `version` field to one skill unless the repo is adopting a consistent skill-level version convention for all skills.
+For human-visible releases, prefer git tags named per skill, such as `fast-turtle-v0.1.0`, and summarize changes in GitHub releases or release notes. Do not add an ad hoc `version` field to one skill unless the repo is adopting a consistent skill-level version convention for all skills.
