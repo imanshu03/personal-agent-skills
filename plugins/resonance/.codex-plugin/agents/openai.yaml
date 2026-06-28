@@ -1,4 +1,0 @@
-interface:
-  display_name: "Resonance"
-  short_description: "Coordinate via control baton"
-  default_prompt: "Run /resonance:orchestrator to bootstrap this change, create control.md, return the /resonance:executor <uuid> command, and coordinate with the long-lived Executor through the control baton."
