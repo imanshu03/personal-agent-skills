@@ -4,17 +4,5 @@
   "owner": {
     "name": "imanshu03"
   },
-  "plugins": [
-    {
-      "name": "resonance",
-      "description": "Review-gated Orchestrator and Executor coordination for large changes.",
-      "version": "0.1.0",
-      "author": {
-        "name": "imanshu03"
-      },
-      "source": "./plugins/resonance",
-      "category": "development",
-      "homepage": "https://github.com/imanshu03/personal-agent-skills/tree/main/plugins/resonance"
-    }
-  ]
+  "plugins": []
 }

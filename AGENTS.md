@@ -1,13 +1,12 @@
 # Agent Instructions
 
-This repository contains personal agent skills and plugins. Treat it as a small agent-extension library: root-level files are shared project documentation, individual skills live under `skills/<skill-name>/`, and plugin packages live under `plugins/<plugin-name>/`.
+This repository contains personal agent skills. Treat it as a small agent-extension library: root-level files are shared project documentation, and individual skills live under `skills/<skill-name>/`. Plugin packages, if any are added later, live under `plugins/<plugin-name>/`.
 
 ## Repository Layout
 
 - `skills/fast-turtle/SKILL.md`: Single-model, agent-agnostic structured build orchestration (gated brainstorm → architecture → plan + dependency-DAG → parallel milestone execution → per-milestone review → final verification), with `skills/fast-turtle/references/orchestration-recipe.md` holding the fan-out pattern and ledger templates.
-- `plugins/resonance/`: Claude Code and Codex plugin for review-gated two-agent coordination where the invoking agent/session chooses the Orchestrator or Executor role, including `/resonance:orchestrator` and `/resonance:executor` command files.
-- `.claude-plugin/marketplace.json`: Claude Code marketplace entry for repo-local plugins.
-- `.agents/plugins/marketplace.json`: Codex marketplace entry for repo-local plugins.
+- `.claude-plugin/marketplace.json`: Claude Code plugin-marketplace manifest. Currently no plugins (empty `plugins` list); scaffolding for future plugins.
+- `.agents/plugins/marketplace.json`: Codex plugin-marketplace manifest. Currently no plugins (empty `plugins` list); scaffolding for future plugins.
 - `README.md`: Human-facing overview of the repository.
 - `AGENTS.md`: Canonical instructions for coding agents working in this repository.
 - `CLAUDE.md`: Pointer to this file for Claude compatibility.
